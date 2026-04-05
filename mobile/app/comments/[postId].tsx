@@ -192,6 +192,17 @@ export default function CommentScreen() {
         contentContainerStyle={[styles.listContent, { paddingBottom: 28 }]}
         keyboardShouldPersistTaps="handled"
       >
+        {commentsQuery.isError ? (
+          <View style={[styles.errorCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.errorTitle, { color: colors.text }]}>댓글을 불러오지 못했어요</Text>
+            <Text style={[styles.errorBody, { color: colors.subtext }]}>
+              {commentsQuery.error instanceof AxiosError
+                ? (commentsQuery.error.response?.data?.detail as string | undefined) ?? commentsQuery.error.message
+                : '잠시 후 다시 시도해 주세요.'}
+            </Text>
+          </View>
+        ) : null}
+
         <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.summaryLabel, { color: colors.subtext }]}>COMMENT ROOM</Text>
           <Text style={[styles.summaryValue, { color: colors.text }]}>{flatCount}개</Text>
@@ -298,6 +309,9 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   list: { flex: 1 },
   listContent: { padding: 16, gap: 14 },
+  errorCard: { borderWidth: 1, borderRadius: 24, padding: 18, gap: 6 },
+  errorTitle: { fontSize: 16, fontWeight: '900' },
+  errorBody: { lineHeight: 20, fontWeight: '600' },
   summaryCard: { borderWidth: 1, borderRadius: 24, padding: 18 },
   summaryLabel: { fontSize: 12, fontWeight: '800', letterSpacing: 1 },
   summaryValue: { fontSize: 30, fontWeight: '900', marginTop: 6 },

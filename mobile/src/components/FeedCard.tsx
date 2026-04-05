@@ -67,9 +67,9 @@ export function FeedCard({
             <TouchableOpacity style={styles.iconButton} onPress={() => onQuote?.(post)}>
               <Ionicons name="arrow-undo-outline" size={24} color="white" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton} onPress={() => onComment?.(post)}>
-              <Ionicons name="chatbubble-outline" size={23} color="white" />
-              <Text style={styles.count}>{post.comments}</Text>
+            <TouchableOpacity style={styles.commentButton} onPress={() => onComment?.(post)}>
+              <Ionicons name="chatbubble-outline" size={18} color="white" />
+              <Text style={styles.commentButtonText}>{`댓글 ${post.comments}`}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.iconButton} onPress={() => onHeart?.(post)}>
               <Ionicons name={post.likedByMe ? 'heart' : 'heart-outline'} size={24} color={post.likedByMe ? '#FF4D6D' : 'white'} />
@@ -153,5 +153,16 @@ const styles = StyleSheet.create({
   },
   actions: { alignItems: 'center', gap: 18, paddingBottom: 8 },
   iconButton: { alignItems: 'center', justifyContent: 'center' },
+  commentButton: {
+    minWidth: 74,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: 'rgba(15,23,42,0.34)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  commentButtonText: { color: 'white', fontSize: 12, fontWeight: '800' },
   count: { color: 'white', fontSize: 12, fontWeight: '700', marginTop: 2 },
 });

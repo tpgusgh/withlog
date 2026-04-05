@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Form, UploadFile, File, HTTPException
 from sqlalchemy.orm import Session
 from app.core.auth import get_current_user
@@ -10,6 +11,16 @@ from app.models.user import User
 router = APIRouter()
 UPLOAD_DIR = Path('uploads')
 UPLOAD_DIR.mkdir(exist_ok=True)
+APP_TIMEZONE = ZoneInfo('Asia/Seoul')
+
+
+def local_now() -> datetime:
+    return datetime.now(APP_TIMEZONE)
+
+
+def parse_slot_datetime(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value)
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=APP_TIMEZONE)
 
 @router.post('/slot/{slot_id}')
 async def upload_post(
@@ -30,14 +41,15 @@ async def upload_post(
     slot = db.query(Slot).filter(Slot.id == slot_id).first()
     if not slot:
         raise HTTPException(status_code=404, detail='Slot not found')
-    open_at = datetime.fromisoformat(slot.open_at)
+    now = local_now()
+    open_at = parse_slot_datetime(slot.open_at)
     close_at = open_at + timedelta(hours=1)
-    if slot.close_at != close_at.isoformat() or slot.status != ('open' if datetime.now() < close_at else 'closed'):
+    if slot.close_at != close_at.isoformat() or slot.status != ('open' if now < close_at else 'closed'):
         slot.close_at = close_at.isoformat()
-        slot.status = 'open' if datetime.now() < close_at else 'closed'
+        slot.status = 'open' if now < close_at else 'closed'
         db.add(slot)
         db.commit()
-    if datetime.now() > close_at:
+    if now > close_at:
         raise HTTPException(status_code=400, detail='Upload window closed')
 
     out = UPLOAD_DIR / f"{slot_id}_{current_user.id}_{file.filename}"

@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -14,6 +15,16 @@ router = APIRouter()
 INVITE_LINK_PREFIX = 'withlog://join?code='
 CHAT_UPLOAD_DIR = Path('uploads/chat')
 CHAT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+APP_TIMEZONE = ZoneInfo('Asia/Seoul')
+
+
+def local_now() -> datetime:
+    return datetime.now(APP_TIMEZONE)
+
+
+def parse_slot_datetime(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value)
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=APP_TIMEZONE)
 
 
 def serialize_chat_message(message: ChatMessage, author: User | None):
@@ -219,7 +230,7 @@ def current_slot(group_id: int, db: Session = Depends(get_db), current_user: Use
     membership = db.query(GroupMember).filter(GroupMember.group_id == group_id, GroupMember.user_id == current_user.id).first()
     if not membership:
         raise HTTPException(status_code=403, detail='Not a member of this group')
-    now = datetime.now()
+    now = local_now()
     slot_hour = now.hour
     slot_date = now.strftime('%Y-%m-%d')
     open_at = now.replace(minute=0, second=0, microsecond=0)
@@ -231,14 +242,14 @@ def current_slot(group_id: int, db: Session = Depends(get_db), current_user: Use
         db.commit()
         db.refresh(slot)
     else:
-        expected_close_at = datetime.fromisoformat(slot.open_at) + timedelta(hours=1)
+        expected_close_at = parse_slot_datetime(slot.open_at) + timedelta(hours=1)
         if slot.close_at != expected_close_at.isoformat() or slot.status != ('open' if now < expected_close_at else 'closed'):
             slot.close_at = expected_close_at.isoformat()
             slot.status = 'open' if now < expected_close_at else 'closed'
             db.add(slot)
             db.commit()
             db.refresh(slot)
-    return {'slot_id': slot.id, 'slot_date': slot.slot_date, 'slot_hour': slot.slot_hour, 'open_at': slot.open_at, 'close_at': slot.close_at, 'is_open': now < datetime.fromisoformat(slot.close_at)}
+    return {'slot_id': slot.id, 'slot_date': slot.slot_date, 'slot_hour': slot.slot_hour, 'open_at': slot.open_at, 'close_at': slot.close_at, 'is_open': now < parse_slot_datetime(slot.close_at)}
 
 @router.get('/{group_id}/feed')
 def group_feed(group_id: int, date: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -246,20 +257,54 @@ def group_feed(group_id: int, date: str, db: Session = Depends(get_db), current_
     if not membership:
         raise HTTPException(status_code=403, detail='Not a member of this group')
     slots = db.query(Slot).filter(Slot.group_id == group_id, Slot.slot_date == date).order_by(Slot.slot_hour.asc()).all()
+    slot_ids = [slot.id for slot in slots]
+    posts = db.query(Post).filter(Post.slot_id.in_(slot_ids)).all() if slot_ids else []
+    user_ids = {post.user_id for post in posts}
+    post_ids = [post.id for post in posts]
+    authors = {
+        user.id: user
+        for user in db.query(User).filter(User.id.in_(user_ids)).all()
+    } if user_ids else {}
+    like_counts = {
+        post_id: count
+        for post_id, count in (
+            db.query(Like.post_id, func.count(Like.id))
+            .filter(Like.post_id.in_(post_ids))
+            .group_by(Like.post_id)
+            .all()
+            if post_ids
+            else []
+        )
+    }
+    liked_post_ids = {
+        post_id
+        for post_id, in (
+            db.query(Like.post_id)
+            .filter(Like.post_id.in_(post_ids), Like.user_id == current_user.id)
+            .all()
+            if post_ids
+            else []
+        )
+    }
+    comment_counts = {
+        post_id: count
+        for post_id, count in (
+            db.query(Comment.post_id, func.count(Comment.id))
+            .filter(Comment.post_id.in_(post_ids))
+            .group_by(Comment.post_id)
+            .all()
+            if post_ids
+            else []
+        )
+    }
+    posts_by_slot_id: dict[int, list[Post]] = {}
+    for post in posts:
+        posts_by_slot_id.setdefault(post.slot_id, []).append(post)
     result = []
     for slot in slots:
-        posts = db.query(Post).filter(Post.slot_id == slot.id).all()
         serialized_posts = []
-        for post in posts:
-            author = db.query(User).filter(User.id == post.user_id).first()
-            like_count = db.query(func.count(Like.id)).filter(Like.post_id == post.id).scalar() or 0
-            liked_by_me = (
-                db.query(Like.id)
-                .filter(Like.post_id == post.id, Like.user_id == current_user.id)
-                .first()
-                is not None
-            )
-            comment_count = db.query(func.count(Comment.id)).filter(Comment.post_id == post.id).scalar() or 0
+        for post in posts_by_slot_id.get(slot.id, []):
+            author = authors.get(post.user_id)
             serialized_posts.append({
                 'id': post.id,
                 'caption': post.caption_text,
@@ -269,9 +314,9 @@ def group_feed(group_id: int, date: str, db: Session = Depends(get_db), current_
                 'music': post.music_name,
                 'is_muted': False,
                 'created_at': post.created_at.isoformat() if post.created_at else None,
-                'likes': like_count,
-                'liked_by_me': liked_by_me,
-                'comments': comment_count,
+                'likes': like_counts.get(post.id, 0),
+                'liked_by_me': post.id in liked_post_ids,
+                'comments': comment_counts.get(post.id, 0),
                 'user': {
                     'id': author.id if author else post.user_id,
                     'nickname': author.nickname if author else 'Unknown',

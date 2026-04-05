@@ -499,8 +499,28 @@ export default function GroupDetailScreen() {
           <Text style={[styles.pageDate, { color: colors.subtext }]}>{activePage?.displayDate ?? formatDisplayDate(new Date())}</Text>
           <Text style={[styles.pageHour, { color: colors.text }]}>{activePage?.hourLabel ?? '--:--'}</Text>
         </View>
-        <View style={styles.pageBadge}>
-          <Text style={styles.pageBadgeText}>{activeIndex + 1}/24</Text>
+        <View style={styles.pageDots}>
+          {pages.map((page, index) => {
+            const distance = Math.abs(index - activeIndex);
+            if (distance > 2) {
+              return null;
+            }
+            const isActive = index === activeIndex;
+            return (
+              <View
+                key={`dot-${page.key}`}
+                style={[
+                  styles.pageDot,
+                  distance === 2 && styles.pageDotFar,
+                  distance === 1 && styles.pageDotNear,
+                  isActive && styles.pageDotActive,
+                  {
+                    backgroundColor: isActive ? colors.text : isDark ? 'rgba(255,255,255,0.3)' : 'rgba(15,23,42,0.18)',
+                  },
+                ]}
+              />
+            );
+          })}
         </View>
       </View>
 
@@ -591,7 +611,7 @@ export default function GroupDetailScreen() {
 
                 const mapped: Post = {
                   id: post.id,
-                  createdAt: formatCreatedAtLabel(post.created_at),
+                  createdAt: page.hourLabel,
                   dateLabel: page.displayDate,
                   caption: post.caption ?? '',
                   likes: post.likes,
@@ -751,8 +771,11 @@ const styles = StyleSheet.create({
   timelineHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   pageDate: { fontSize: 14, fontWeight: '700' },
   pageHour: { fontSize: 30, fontWeight: '900', marginTop: 4 },
-  pageBadge: { backgroundColor: '#171412', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
-  pageBadgeText: { color: '#FFFFFF', fontWeight: '800' },
+  pageDots: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 18 },
+  pageDot: { width: 8, height: 8, borderRadius: 999, opacity: 0.9 },
+  pageDotNear: { width: 10, height: 10, opacity: 0.95 },
+  pageDotFar: { width: 6, height: 6, opacity: 0.7 },
+  pageDotActive: { width: 26, height: 10, borderRadius: 999, opacity: 1 },
   timelineTrack: { alignItems: 'flex-start' },
   page: { paddingHorizontal: 0, paddingRight: 16 },
   pageStack: { gap: 20, alignItems: 'center' },
