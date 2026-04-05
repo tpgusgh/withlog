@@ -20,6 +20,7 @@ class CommentReactionIn(BaseModel):
 class ChatMessageIn(BaseModel):
     content: str
     quote_post_id: int | None = None
+    reply_message_id: int | None = None
 
 
 class ChatSharePostIn(BaseModel):

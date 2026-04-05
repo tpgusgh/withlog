@@ -50,6 +50,11 @@ export type ChatMessage = {
   messageType?: 'text' | 'quote' | 'heart' | 'image';
   mediaUrl?: string | null;
   mediaType?: 'image' | 'video' | null;
+  reply?: {
+    messageId?: number | null;
+    content?: string | null;
+    authorNickname?: string | null;
+  } | null;
   quote?: {
     postId?: number | null;
     caption?: string | null;

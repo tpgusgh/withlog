@@ -4,6 +4,7 @@ import {
   Alert,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -19,7 +20,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { api, buildAssetUrl } from '@/services/api';
+import { api, buildAssetUrl, buildProfileImageUrl } from '@/services/api';
 import { useAuthStore } from '@/store/auth';
 import { useAppTheme } from '@/store/theme';
 import type { ChatMessage } from '@/types';
@@ -49,6 +50,8 @@ export default function GroupChatScreen() {
   const [text, setText] = useState('');
   const [selectedImage, setSelectedImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [ambientKey, setAmbientKey] = useState<'none' | 'rain' | 'forest'>('none');
+  const [replyTarget, setReplyTarget] = useState<ChatMessage | null>(null);
+  const [selectedMessage, setSelectedMessage] = useState<ChatMessage | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
   const scrollRef = useRef<ScrollView | null>(null);
 
@@ -96,6 +99,7 @@ export default function GroupChatScreen() {
         message_type?: 'text' | 'quote' | 'heart' | 'image';
         media_url?: string | null;
         media_type?: 'image' | 'video' | null;
+        reply?: { message_id?: number | null; content?: string | null; author_nickname?: string | null } | null;
         quote?: { post_id?: number | null; caption?: string | null; thumbnail_url?: string | null; author_nickname?: string | null } | null;
         created_at?: string | null;
         user: { id: number; nickname: string; profile_image?: string | null };
@@ -107,6 +111,13 @@ export default function GroupChatScreen() {
           messageType: message.message_type,
           mediaUrl: message.media_url ? buildAssetUrl(message.media_url) : null,
           mediaType: message.media_type,
+          reply: message.reply
+            ? {
+                messageId: message.reply.message_id ?? null,
+                content: message.reply.content ?? null,
+                authorNickname: message.reply.author_nickname ?? null,
+              }
+            : null,
           quote: message.quote
             ? {
                 postId: message.quote.post_id ?? null,
@@ -118,7 +129,7 @@ export default function GroupChatScreen() {
           user: {
             id: message.user.id,
             nickname: message.user.nickname,
-            profileImage: message.user.profile_image ? buildAssetUrl(message.user.profile_image) : null,
+            profileImage: buildProfileImageUrl(message.user.profile_image, message.user.nickname),
           },
         }),
       );
@@ -139,6 +150,9 @@ export default function GroupChatScreen() {
       if (selectedImage) {
         const formData = new FormData();
         formData.append('content', text.trim());
+        if (replyTarget?.id) {
+          formData.append('reply_message_id', String(replyTarget.id));
+        }
         if (quote?.postId) {
           formData.append('quote_post_id', String(quote.postId));
         }
@@ -155,12 +169,14 @@ export default function GroupChatScreen() {
       const response = await api.post(`/groups/${groupId}/chat`, {
         content: text.trim(),
         quote_post_id: quote?.postId ?? null,
+        reply_message_id: replyTarget?.id ?? null,
       });
       return response.data;
     },
     onSuccess: async () => {
       setText('');
       setSelectedImage(null);
+      setReplyTarget(null);
       await queryClient.invalidateQueries({ queryKey: ['group-chat', groupId] });
       router.setParams({ quotePostId: undefined, quoteCaption: undefined, quoteThumbnail: undefined, quoteAuthor: undefined, quoteMode: undefined });
     },
@@ -214,17 +230,17 @@ export default function GroupChatScreen() {
       >
         {chatQuery.data?.map((message) => (
           <View key={message.id} style={[styles.messageRow, message.user.id === currentUser?.id ? styles.messageRowMine : styles.messageRowTheirs]}>
-            {message.user.id !== currentUser?.id ? (
-              message.user.profileImage ? <Image source={{ uri: message.user.profileImage }} style={styles.avatar} /> : <View style={styles.avatar} />
-            ) : null}
+            {message.user.id !== currentUser?.id ? <Image source={{ uri: message.user.profileImage || buildProfileImageUrl(null, message.user.nickname) }} style={styles.avatar} /> : null}
             <View style={[styles.messageWrap, message.user.id === currentUser?.id ? styles.messageWrapMine : styles.messageWrapTheirs]}>
               <View style={[styles.messageMeta, message.user.id === currentUser?.id ? styles.messageMetaMine : styles.messageMetaTheirs]}>
-                {message.user.id !== currentUser?.id ? (
-                  <Text style={[styles.author, { color: colors.text }]}>{message.user.nickname}</Text>
-                ) : null}
+                {message.user.id === currentUser?.id ? <Image source={{ uri: message.user.profileImage || buildProfileImageUrl(null, message.user.nickname) }} style={styles.myAvatar} /> : null}
+                {message.user.id !== currentUser?.id ? <Text style={[styles.author, { color: colors.text }]}>{message.user.nickname}</Text> : null}
                 <Text style={[styles.time, { color: colors.subtext }]}>{message.createdAt}</Text>
               </View>
-              <View
+              <TouchableOpacity
+                activeOpacity={0.92}
+                delayLongPress={220}
+                onLongPress={() => setSelectedMessage(message)}
                 style={[
                   styles.bubble,
                   message.user.id === currentUser?.id
@@ -232,6 +248,26 @@ export default function GroupChatScreen() {
                     : [styles.bubbleTheirs, { backgroundColor: colors.card, borderColor: colors.border }],
                 ]}
               >
+                {message.reply ? (
+                  <View
+                    style={[
+                      styles.replyCard,
+                      message.user.id === currentUser?.id
+                        ? styles.quoteCardMine
+                        : [styles.quoteCardTheirs, { backgroundColor: colors.background, borderColor: colors.border }],
+                    ]}
+                  >
+                    <Text style={[styles.replyAuthor, { color: message.user.id === currentUser?.id ? colors.background : colors.text }]}>
+                      {message.reply.authorNickname}
+                    </Text>
+                    <Text
+                      style={[styles.replyContent, { color: message.user.id === currentUser?.id ? 'rgba(247,242,236,0.78)' : colors.subtext }]}
+                      numberOfLines={2}
+                    >
+                      {message.reply.content || '사진을 보냈어요'}
+                    </Text>
+                  </View>
+                ) : null}
                 {message.quote ? (
                   <View
                     style={[
@@ -264,12 +300,25 @@ export default function GroupChatScreen() {
                 {message.messageType === 'heart' ? (
                   <Text style={[styles.heartText, { color: message.user.id === currentUser?.id ? '#FFD5DE' : '#FB7185' }]}>하트를 보냈어요</Text>
                 ) : null}
-              </View>
+              </TouchableOpacity>
             </View>
           </View>
         ))}
       </ScrollView>
 
+      {replyTarget ? (
+        <View style={[styles.replyComposer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.replyComposerCopy}>
+            <Text style={[styles.replyComposerLabel, { color: colors.text }]}>{replyTarget.user.nickname}님에게 답장</Text>
+            <Text style={[styles.replyComposerText, { color: colors.subtext }]} numberOfLines={1}>
+              {replyTarget.content || (replyTarget.mediaUrl ? '사진을 보냈어요' : '')}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={() => setReplyTarget(null)}>
+            <Ionicons name="close" size={18} color={colors.subtext} />
+          </TouchableOpacity>
+        </View>
+      ) : null}
       {quote ? (
         <View style={[styles.quoteComposer, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.quoteComposerLabel, { color: colors.text }]}>{quote.mode === 'heart' ? '하트 공유' : '사진 인용'}</Text>
@@ -277,6 +326,31 @@ export default function GroupChatScreen() {
         </View>
       ) : null}
       {selectedImage ? <Image source={{ uri: selectedImage.uri }} style={styles.selectedImage} /> : null}
+
+      <Modal visible={Boolean(selectedMessage)} transparent animationType="fade" onRequestClose={() => setSelectedMessage(null)}>
+        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setSelectedMessage(null)}>
+          <View style={[styles.actionSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.actionTitle, { color: colors.text }]}>메시지 액션</Text>
+            <Text style={[styles.actionCaption, { color: colors.subtext }]} numberOfLines={2}>
+              {selectedMessage?.content || (selectedMessage?.mediaUrl ? '사진을 보냈어요' : '')}
+            </Text>
+            <TouchableOpacity
+              style={[styles.actionPrimary, { backgroundColor: colors.text }]}
+              onPress={() => {
+                if (selectedMessage) {
+                  setReplyTarget(selectedMessage);
+                }
+                setSelectedMessage(null);
+              }}
+            >
+              <Text style={[styles.actionPrimaryText, { color: colors.background }]}>답장하기</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionSecondary} onPress={() => setSelectedMessage(null)}>
+              <Text style={[styles.actionSecondaryText, { color: colors.subtext }]}>닫기</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       <View style={[styles.composerShell, { borderTopColor: colors.border, backgroundColor: colors.background, paddingBottom: Math.max(insets.bottom, 12) }]}>
         <View style={[styles.composer, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -325,11 +399,15 @@ const styles = StyleSheet.create({
   messageMetaMine: { justifyContent: 'flex-end' },
   messageMetaTheirs: { justifyContent: 'flex-start', paddingLeft: 4 },
   avatar: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#CBD5E1' },
+  myAvatar: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#CBD5E1' },
   author: { fontWeight: '800' },
   time: { fontSize: 12, fontWeight: '600' },
   bubble: { gap: 10, padding: 12, borderWidth: 1, borderRadius: 24 },
   bubbleMine: { borderColor: 'transparent', borderBottomRightRadius: 8 },
   bubbleTheirs: { borderBottomLeftRadius: 8 },
+  replyCard: { borderWidth: 1, borderRadius: 16, padding: 10, gap: 4 },
+  replyAuthor: { fontWeight: '800' },
+  replyContent: { lineHeight: 18 },
   quoteCard: { flexDirection: 'row', gap: 10, borderWidth: 1, borderRadius: 16, padding: 10 },
   quoteCardMine: { borderColor: 'rgba(247,242,236,0.18)', backgroundColor: 'rgba(247,242,236,0.08)' },
   quoteCardTheirs: {},
@@ -340,10 +418,22 @@ const styles = StyleSheet.create({
   chatImage: { width: 200, height: 240, borderRadius: 18, backgroundColor: '#CBD5E1' },
   messageText: { fontSize: 15, lineHeight: 22 },
   heartText: { fontWeight: '800' },
+  replyComposer: { marginHorizontal: 20, borderWidth: 1, borderRadius: 18, padding: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  replyComposerCopy: { flex: 1, gap: 4 },
+  replyComposerLabel: { fontWeight: '800' },
+  replyComposerText: { lineHeight: 18 },
   quoteComposer: { marginHorizontal: 20, borderWidth: 1, borderRadius: 18, padding: 12, marginBottom: 10 },
   quoteComposerLabel: { fontWeight: '800' },
   quoteComposerText: { marginTop: 4, lineHeight: 18 },
   selectedImage: { width: 72, height: 72, borderRadius: 14, marginHorizontal: 20, marginBottom: 10 },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(15,23,42,0.42)', justifyContent: 'flex-end', padding: 16 },
+  actionSheet: { borderWidth: 1, borderRadius: 28, padding: 18, gap: 14 },
+  actionTitle: { fontSize: 18, fontWeight: '900' },
+  actionCaption: { lineHeight: 20, fontWeight: '600' },
+  actionPrimary: { borderRadius: 18, paddingVertical: 15, alignItems: 'center' },
+  actionPrimaryText: { fontWeight: '800' },
+  actionSecondary: { alignItems: 'center', paddingVertical: 8 },
+  actionSecondaryText: { fontWeight: '700' },
   composerShell: { paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1 },
   composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, borderWidth: 1, borderRadius: 28, paddingHorizontal: 10, paddingVertical: 10 },
   composerIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },

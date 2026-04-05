@@ -77,6 +77,8 @@ const ensureNotificationPermission = async () => {
   return true;
 };
 
+export const requestNotificationPermission = async () => ensureNotificationPermission();
+
 export const syncLocalNotifications = async (settings?: LocalProfileSettings) => {
   const resolved = settings ?? defaultProfileSettings;
 

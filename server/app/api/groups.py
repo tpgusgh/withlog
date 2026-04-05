@@ -23,6 +23,15 @@ def serialize_chat_message(message: ChatMessage, author: User | None):
         'message_type': message.message_type,
         'media_url': message.media_url,
         'media_type': message.media_type,
+        'reply': (
+            {
+                'message_id': message.reply_message_id,
+                'content': message.reply_content,
+                'author_nickname': message.reply_author_nickname,
+            }
+            if message.reply_message_id
+            else None
+        ),
         'quote': (
             {
                 'post_id': message.quote_post_id,
@@ -292,6 +301,13 @@ def create_group_chat(group_id: int, payload: ChatMessageIn, db: Session = Depen
         raise HTTPException(status_code=400, detail='메시지를 입력해 주세요.')
 
     message = ChatMessage(group_id=group_id, user_id=current_user.id, content=content, message_type='text')
+    if payload.reply_message_id is not None:
+        replied = db.query(ChatMessage).filter(ChatMessage.id == payload.reply_message_id, ChatMessage.group_id == group_id).first()
+        if replied:
+            replied_author = db.query(User).filter(User.id == replied.user_id).first()
+            message.reply_message_id = replied.id
+            message.reply_content = replied.content or ('사진을 보냈어요' if replied.media_url else '')
+            message.reply_author_nickname = replied_author.nickname if replied_author else 'Unknown'
     if payload.quote_post_id is not None:
         post = db.query(Post).filter(Post.id == payload.quote_post_id, Post.group_id == group_id).first()
         if post:
@@ -312,6 +328,7 @@ async def upload_group_chat_media(
     file: UploadFile = File(...),
     content: str = Form(''),
     quote_post_id: int | None = Form(default=None),
+    reply_message_id: int | None = Form(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -330,6 +347,13 @@ async def upload_group_chat_media(
         media_url=f'/uploads/chat/{output.name}',
         media_type='image',
     )
+    if reply_message_id is not None:
+        replied = db.query(ChatMessage).filter(ChatMessage.id == reply_message_id, ChatMessage.group_id == group_id).first()
+        if replied:
+            replied_author = db.query(User).filter(User.id == replied.user_id).first()
+            message.reply_message_id = replied.id
+            message.reply_content = replied.content or ('사진을 보냈어요' if replied.media_url else '')
+            message.reply_author_nickname = replied_author.nickname if replied_author else 'Unknown'
     if quote_post_id is not None:
         post = db.query(Post).filter(Post.id == quote_post_id, Post.group_id == group_id).first()
         if post:

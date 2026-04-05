@@ -7,6 +7,7 @@ import { AxiosError } from 'axios';
 import { useAuthStore } from '@/store/auth';
 import { useAppTheme } from '@/store/theme';
 import { api } from '@/services/api';
+import { ensureFirstLoginPermissions } from '@/services/permissions';
 import type { ProfilePayload } from '@/services/profile-settings';
 import type { AuthUser } from '@/store/auth';
 
@@ -102,7 +103,9 @@ export default function SignupScreen() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      await setSession({ token, user: normalizeProfile(meResponse.data) });
+      const nextUser = normalizeProfile(meResponse.data);
+      await setSession({ token, user: nextUser });
+      await ensureFirstLoginPermissions(nextUser.id);
       router.replace('/(tabs)/home');
     } catch (err) {
       const message =

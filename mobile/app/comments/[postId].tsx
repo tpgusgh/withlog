@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import {
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -53,38 +54,39 @@ const mapComment = (comment: ApiComment): CommentItem => ({
 function CommentCard({
   comment,
   colors,
-  onReply,
-  onReact,
+  onLongPress,
   replyTargetId,
 }: {
   comment: CommentItem;
   colors: { background: string; card: string; border: string; text: string; subtext: string };
-  onReply: (comment: CommentItem) => void;
-  onReact: (commentId: number, emoji: string) => void;
+  onLongPress: (comment: CommentItem) => void;
   replyTargetId?: number | null;
 }) {
   return (
     <View style={styles.commentBlock}>
       <View style={styles.commentRow}>
         <Image source={{ uri: comment.user.profileImage || buildProfileImageUrl(null, comment.user.nickname) }} style={styles.avatar} />
-        <View style={[styles.commentCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <TouchableOpacity
+          activeOpacity={0.92}
+          delayLongPress={220}
+          onLongPress={() => onLongPress(comment)}
+          style={[styles.commentCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+        >
           <View style={styles.commentMeta}>
             <Text style={[styles.commentAuthor, { color: colors.text }]}>{comment.user.nickname}</Text>
             <Text style={[styles.commentTime, { color: colors.subtext }]}>{comment.createdAt}</Text>
           </View>
           <Text style={[styles.commentContent, { color: colors.text }]}>{comment.content}</Text>
           <View style={styles.commentFooter}>
-            <TouchableOpacity onPress={() => onReply(comment)}>
-              <Text style={[styles.replyButton, { color: replyTargetId === comment.id ? colors.text : colors.subtext }]}>
-                {replyTargetId === comment.id ? '답글 작성 중' : '답글'}
-              </Text>
-            </TouchableOpacity>
+            <Text style={[styles.replyButton, { color: replyTargetId === comment.id ? colors.text : colors.subtext }]}>
+              {replyTargetId === comment.id ? '답글 작성 중' : '길게 눌러 답글 또는 반응'}
+            </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.reactionRow}>
               {REACTION_OPTIONS.map((emoji) => {
                 const count = comment.reactions.find((reaction) => reaction.emoji === emoji)?.count ?? 0;
                 const active = comment.myReaction === emoji;
                 return (
-                  <TouchableOpacity
+                  <View
                     key={`${comment.id}-${emoji}`}
                     style={[
                       styles.reactionChip,
@@ -93,18 +95,17 @@ function CommentCard({
                         borderColor: active ? colors.text : colors.border,
                       },
                     ]}
-                    onPress={() => onReact(comment.id, emoji)}
                   >
                     <Text style={styles.reactionEmoji}>{emoji}</Text>
                     {count > 0 ? (
                       <Text style={[styles.reactionCount, { color: active ? colors.background : colors.text }]}>{count}</Text>
                     ) : null}
-                  </TouchableOpacity>
+                  </View>
                 );
               })}
             </ScrollView>
           </View>
-        </View>
+        </TouchableOpacity>
       </View>
       {comment.replies.length ? (
         <View style={styles.replyList}>
@@ -113,8 +114,7 @@ function CommentCard({
               key={reply.id}
               comment={reply}
               colors={colors}
-              onReply={onReply}
-              onReact={onReact}
+              onLongPress={onLongPress}
               replyTargetId={replyTargetId}
             />
           ))}
@@ -133,6 +133,7 @@ export default function CommentScreen() {
   const groupIdNumber = Number(groupId);
   const [text, setText] = useState('');
   const [replyTarget, setReplyTarget] = useState<CommentItem | null>(null);
+  const [selectedComment, setSelectedComment] = useState<CommentItem | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const commentsQuery = useQuery({
@@ -202,8 +203,7 @@ export default function CommentScreen() {
             key={comment.id}
             comment={comment}
             colors={colors}
-            onReply={setReplyTarget}
-            onReact={(commentId, emoji) => reactMutation.mutate({ commentId, emoji })}
+            onLongPress={setSelectedComment}
             replyTargetId={replyTarget?.id}
           />
         ))}
@@ -227,6 +227,47 @@ export default function CommentScreen() {
           </TouchableOpacity>
         </View>
       ) : null}
+
+      <Modal visible={Boolean(selectedComment)} transparent animationType="fade" onRequestClose={() => setSelectedComment(null)}>
+        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setSelectedComment(null)}>
+          <View style={[styles.actionSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.actionTitle, { color: colors.text }]}>댓글 액션</Text>
+            <Text style={[styles.actionCaption, { color: colors.subtext }]} numberOfLines={2}>
+              {selectedComment?.content}
+            </Text>
+            <View style={styles.actionEmojiRow}>
+              {REACTION_OPTIONS.map((emoji) => (
+                <TouchableOpacity
+                  key={`sheet-${emoji}`}
+                  style={[styles.actionEmojiButton, { backgroundColor: colors.background, borderColor: colors.border }]}
+                  onPress={() => {
+                    if (selectedComment) {
+                      reactMutation.mutate({ commentId: selectedComment.id, emoji });
+                    }
+                    setSelectedComment(null);
+                  }}
+                >
+                  <Text style={styles.actionEmojiText}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity
+              style={[styles.actionPrimary, { backgroundColor: colors.text }]}
+              onPress={() => {
+                if (selectedComment) {
+                  setReplyTarget(selectedComment);
+                }
+                setSelectedComment(null);
+              }}
+            >
+              <Text style={[styles.actionPrimaryText, { color: colors.background }]}>답글 달기</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionSecondary} onPress={() => setSelectedComment(null)}>
+              <Text style={[styles.actionSecondaryText, { color: colors.subtext }]}>닫기</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       <View style={[styles.composerShell, { backgroundColor: colors.background, borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 12) }]}>
         <View style={[styles.composer, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -276,6 +317,17 @@ const styles = StyleSheet.create({
   reactionEmoji: { fontSize: 14 },
   reactionCount: { fontSize: 12, fontWeight: '800' },
   replyList: { marginLeft: 44, gap: 10 },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(15,23,42,0.42)', justifyContent: 'flex-end', padding: 16 },
+  actionSheet: { borderWidth: 1, borderRadius: 28, padding: 18, gap: 14 },
+  actionTitle: { fontSize: 18, fontWeight: '900' },
+  actionCaption: { lineHeight: 20, fontWeight: '600' },
+  actionEmojiRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  actionEmojiButton: { flex: 1, borderWidth: 1, borderRadius: 18, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
+  actionEmojiText: { fontSize: 24 },
+  actionPrimary: { borderRadius: 18, paddingVertical: 15, alignItems: 'center' },
+  actionPrimaryText: { fontWeight: '800' },
+  actionSecondary: { alignItems: 'center', paddingVertical: 8 },
+  actionSecondaryText: { fontWeight: '700' },
   emptyCard: { borderWidth: 1, borderRadius: 24, padding: 20, alignItems: 'center' },
   emptyTitle: { fontSize: 18, fontWeight: '900' },
   emptyText: { marginTop: 6, lineHeight: 20, textAlign: 'center' },
