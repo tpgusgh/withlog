@@ -27,6 +27,11 @@ def parse_slot_datetime(value: str) -> datetime:
     return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=APP_TIMEZONE)
 
 
+def slot_window(slot_date: str, slot_hour: int) -> tuple[datetime, datetime]:
+    open_at = datetime.strptime(f'{slot_date} {slot_hour:02d}:00', '%Y-%m-%d %H:%M').replace(tzinfo=APP_TIMEZONE)
+    return open_at, open_at + timedelta(hours=1)
+
+
 def serialize_chat_message(message: ChatMessage, author: User | None):
     return {
         'id': message.id,
@@ -233,8 +238,7 @@ def current_slot(group_id: int, db: Session = Depends(get_db), current_user: Use
     now = local_now()
     slot_hour = now.hour
     slot_date = now.strftime('%Y-%m-%d')
-    open_at = now.replace(minute=0, second=0, microsecond=0)
-    close_at = open_at + timedelta(hours=1)
+    open_at, close_at = slot_window(slot_date, slot_hour)
     slot = db.query(Slot).filter(Slot.group_id == group_id, Slot.slot_date == slot_date, Slot.slot_hour == slot_hour).first()
     if not slot:
         slot = Slot(group_id=group_id, slot_date=slot_date, slot_hour=slot_hour, open_at=open_at.isoformat(), close_at=close_at.isoformat(), status='open' if now < close_at else 'closed')
@@ -242,8 +246,13 @@ def current_slot(group_id: int, db: Session = Depends(get_db), current_user: Use
         db.commit()
         db.refresh(slot)
     else:
-        expected_close_at = parse_slot_datetime(slot.open_at) + timedelta(hours=1)
-        if slot.close_at != expected_close_at.isoformat() or slot.status != ('open' if now < expected_close_at else 'closed'):
+        expected_open_at, expected_close_at = slot_window(slot.slot_date, slot.slot_hour)
+        if (
+            slot.open_at != expected_open_at.isoformat()
+            or slot.close_at != expected_close_at.isoformat()
+            or slot.status != ('open' if now < expected_close_at else 'closed')
+        ):
+            slot.open_at = expected_open_at.isoformat()
             slot.close_at = expected_close_at.isoformat()
             slot.status = 'open' if now < expected_close_at else 'closed'
             db.add(slot)

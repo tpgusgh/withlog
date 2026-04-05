@@ -22,6 +22,11 @@ def parse_slot_datetime(value: str) -> datetime:
     parsed = datetime.fromisoformat(value)
     return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=APP_TIMEZONE)
 
+
+def slot_window(slot_date: str, slot_hour: int) -> tuple[datetime, datetime]:
+    open_at = datetime.strptime(f'{slot_date} {slot_hour:02d}:00', '%Y-%m-%d %H:%M').replace(tzinfo=APP_TIMEZONE)
+    return open_at, open_at + timedelta(hours=1)
+
 @router.post('/slot/{slot_id}')
 async def upload_post(
     slot_id: int,
@@ -42,9 +47,13 @@ async def upload_post(
     if not slot:
         raise HTTPException(status_code=404, detail='Slot not found')
     now = local_now()
-    open_at = parse_slot_datetime(slot.open_at)
-    close_at = open_at + timedelta(hours=1)
-    if slot.close_at != close_at.isoformat() or slot.status != ('open' if now < close_at else 'closed'):
+    open_at, close_at = slot_window(slot.slot_date, slot.slot_hour)
+    if (
+        slot.open_at != open_at.isoformat()
+        or slot.close_at != close_at.isoformat()
+        or slot.status != ('open' if now < close_at else 'closed')
+    ):
+        slot.open_at = open_at.isoformat()
         slot.close_at = close_at.isoformat()
         slot.status = 'open' if now < close_at else 'closed'
         db.add(slot)

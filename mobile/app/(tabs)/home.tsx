@@ -162,6 +162,11 @@ export default function HomeScreen() {
           <Text style={[styles.heroSub, { color: colors.subtext }]}>{`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')} 기준으로 친구들의 순간을 보고 있어요.`}</Text>
         </View>
         {currentSlot ? <CountdownCard slot={currentSlot} /> : null}
+        {user ? (
+          <TouchableOpacity style={styles.storyCreateButton} onPress={() => router.push('/story/create')}>
+            <Text style={styles.storyCreateButtonText}>스토리 올리기</Text>
+          </TouchableOpacity>
+        ) : null}
         {storyItems.length ? (
           <StoryStrip
             items={storyItems}
@@ -201,6 +206,14 @@ const styles = StyleSheet.create({
   heroWrap: { gap: 8, marginBottom: 2 },
   hero: { color: '#0F172A', fontSize: 30, fontWeight: '900' },
   heroSub: { color: '#64748B', fontSize: 15, lineHeight: 22, fontWeight: '500' },
+  storyCreateButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#B8572D',
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  storyCreateButtonText: { color: '#FFFFFF', fontWeight: '800' },
   primary: { backgroundColor: '#171412', borderRadius: 22, padding: 18, alignItems: 'center' },
   primaryText: { color: 'white', fontWeight: '700' },
   groupCard: { backgroundColor: '#FFFFFF', borderRadius: 28, padding: 20, borderWidth: 1, borderColor: '#E2E8F0', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
