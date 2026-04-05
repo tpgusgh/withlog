@@ -12,8 +12,11 @@ from app.db.session import Base, SessionLocal, engine
 from app.models.group import ChatMessage, Comment, CommentReaction, Like, Post, UserStory
 
 Base.metadata.create_all(bind=engine)
-UPLOAD_ROOT = Path('uploads')
+SERVER_ROOT = Path(__file__).resolve().parents[1]
+UPLOAD_ROOT = SERVER_ROOT / 'uploads'
+GENERATED_ROOT = SERVER_ROOT / 'generated'
 RETENTION_DAYS = 7
+GENERATED_ROOT.mkdir(exist_ok=True)
 
 
 def ensure_runtime_columns():
@@ -74,7 +77,7 @@ def ensure_runtime_columns():
 def delete_local_upload(path_value: str | None):
     if not path_value or not path_value.startswith('/uploads/'):
         return
-    target = Path(path_value.lstrip('/'))
+    target = SERVER_ROOT / path_value.lstrip('/')
     try:
         if target.exists() and target.is_file():
             target.unlink()
@@ -159,7 +162,8 @@ app.include_router(posts.router, prefix="/posts", tags=["posts"])
 app.include_router(comments.router, prefix="/comments", tags=["comments"])
 app.include_router(videos.router, prefix="/videos", tags=["videos"])
 app.include_router(stories.router, prefix="/stories", tags=["stories"])
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.mount("/uploads", StaticFiles(directory=UPLOAD_ROOT), name="uploads")
+app.mount("/generated", StaticFiles(directory=GENERATED_ROOT), name="generated")
 
 
 @app.on_event('startup')

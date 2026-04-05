@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_user
 from app.db.session import get_db
 from app.models.group import UserStory
-from app.models.user import User
+from app.models.user import Block, Follow, User
 
 router = APIRouter()
 UPLOAD_DIR = Path('uploads/stories')
@@ -68,7 +68,27 @@ async def create_story(
 @router.get('/feed')
 def story_feed(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     cutoff = datetime.now() - timedelta(hours=24)
-    stories = db.query(UserStory).filter(UserStory.created_at >= cutoff).order_by(UserStory.created_at.desc()).all()
+    following_ids = {
+        follow.following_id
+        for follow in db.query(Follow).filter(Follow.follower_id == current_user.id).all()
+    }
+    blocked_ids = {
+        block.blocked_id
+        for block in db.query(Block).filter(Block.blocker_id == current_user.id).all()
+    } | {
+        block.blocker_id
+        for block in db.query(Block).filter(Block.blocked_id == current_user.id).all()
+    }
+    visible_user_ids = {current_user.id, *following_ids} - blocked_ids
+    if not visible_user_ids:
+        return []
+
+    stories = (
+        db.query(UserStory)
+        .filter(UserStory.created_at >= cutoff, UserStory.user_id.in_(visible_user_ids))
+        .order_by(UserStory.created_at.desc())
+        .all()
+    )
     seen_user_ids: set[int] = set()
     result = []
     for story in stories:

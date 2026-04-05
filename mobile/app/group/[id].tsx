@@ -580,9 +580,8 @@ export default function GroupDetailScreen() {
                           </View>
                         ) : (
                           <View style={styles.placeholderBody}>
-                            <Text style={[styles.placeholderCopy, { color: colors.subtext }]}>
-                              {member.nickname}님이 아직 올리지 않았어요.
-                            </Text>
+                            <Text style={[styles.placeholderHour, { color: colors.text }]}>{page.hourLabel}</Text>
+                            <Text style={styles.placeholderEmoji}>😴💤</Text>
                           </View>
                         )}
                       </BlurView>
@@ -801,6 +800,8 @@ const styles = StyleSheet.create({
   },
   placeholderHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   placeholderBody: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
+  placeholderHour: { fontSize: 28, fontWeight: '900', marginBottom: 8 },
+  placeholderEmoji: { fontSize: 34, marginBottom: 12 },
   placeholderUser: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   placeholderAvatar: { width: 40, height: 40, borderRadius: 999, backgroundColor: '#CBD5E1' },
   placeholderNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },

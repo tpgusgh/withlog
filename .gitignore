@@ -13,11 +13,13 @@ server/app.db
 # Uploads and generated media
 server/uploads/
 uploads/
+generated/
 
 # Expo / React Native
 mobile/node_modules/
 mobile/.expo/
 mobile/dist/
+
 
 # Misc
 *.log

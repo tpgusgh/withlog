@@ -314,14 +314,20 @@ async def update_me(
 @router.get('/users')
 def list_users(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     blocked_ids = get_blocked_user_ids(current_user.id, db)
-    users_query = db.query(User).filter(User.id != current_user.id, User.is_public.is_(True))
-    if blocked_ids:
-        users_query = users_query.filter(User.id.notin_(blocked_ids))
-    users = users_query.order_by(User.nickname.asc()).all()
     following_ids = {
         follow.following_id
         for follow in db.query(Follow).filter(Follow.follower_id == current_user.id).all()
     }
+    users_query = db.query(User).filter(User.id != current_user.id, User.is_public.is_(True))
+    if blocked_ids:
+        users_query = users_query.filter(User.id.notin_(blocked_ids))
+    if following_ids:
+        users_query = users_query.filter(User.id.notin_(following_ids))
+    users = users_query.all()
+    if len(users) > 5:
+        users = random.sample(users, 5)
+    else:
+        random.shuffle(users)
     result = []
     for user in users:
         result.append({
@@ -329,7 +335,7 @@ def list_users(db: Session = Depends(get_db), current_user: User = Depends(get_c
             'email': user.email,
             'nickname': user.nickname,
             'profile_image': user.profile_image,
-            'is_following': user.id in following_ids,
+            'is_following': False,
             'follower_count': db.query(func.count(Follow.id)).filter(Follow.following_id == user.id).scalar() or 0,
             'following_count': db.query(func.count(Follow.id)).filter(Follow.follower_id == user.id).scalar() or 0,
         })

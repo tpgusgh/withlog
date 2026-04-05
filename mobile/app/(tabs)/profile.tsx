@@ -128,7 +128,7 @@ export default function ProfileScreen() {
         <Text style={[styles.helper, { color: colors.subtext }]}>공개 프로필만 추천에 표시됩니다.</Text>
         <View style={styles.recommendList}>
           {recommendedUsersQuery.data?.length ? (
-            recommendedUsersQuery.data.slice(0, 8).map((person) => (
+            recommendedUsersQuery.data.map((person) => (
               <View key={`recommended-${person.id}`} style={[styles.recommendRow, { borderColor: colors.border, backgroundColor: isDark ? '#1F1B18' : '#F8F5F0' }]}>
                 <TouchableOpacity style={styles.recommendMain} onPress={() => router.push(`/profile/${person.id}`)}>
                   <Image source={{ uri: buildProfileImageUrl(person.profile_image, person.nickname) }} style={styles.recommendAvatar} />

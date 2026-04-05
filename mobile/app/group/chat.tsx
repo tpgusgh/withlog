@@ -249,23 +249,34 @@ export default function GroupChatScreen() {
                 ]}
               >
                 {message.reply ? (
-                  <View
-                    style={[
-                      styles.replyCard,
-                      message.user.id === currentUser?.id
-                        ? styles.quoteCardMine
-                        : [styles.quoteCardTheirs, { backgroundColor: colors.background, borderColor: colors.border }],
-                    ]}
-                  >
-                    <Text style={[styles.replyAuthor, { color: message.user.id === currentUser?.id ? colors.background : colors.text }]}>
-                      {message.reply.authorNickname}
-                    </Text>
-                    <Text
-                      style={[styles.replyContent, { color: message.user.id === currentUser?.id ? 'rgba(247,242,236,0.78)' : colors.subtext }]}
-                      numberOfLines={2}
+                  <View style={styles.replyBlock}>
+                    <View
+                      style={[
+                        styles.replyLine,
+                        { backgroundColor: message.user.id === currentUser?.id ? 'rgba(247,242,236,0.58)' : colors.text },
+                      ]}
+                    />
+                    <View
+                      style={[
+                        styles.replyCard,
+                        message.user.id === currentUser?.id
+                          ? styles.replyCardMine
+                          : [styles.replyCardTheirs, { backgroundColor: colors.background, borderColor: colors.border }],
+                      ]}
                     >
-                      {message.reply.content || '사진을 보냈어요'}
-                    </Text>
+                      <Text style={[styles.replyTag, { color: message.user.id === currentUser?.id ? 'rgba(247,242,236,0.82)' : colors.subtext }]}>
+                        Replying to
+                      </Text>
+                      <Text style={[styles.replyAuthor, { color: message.user.id === currentUser?.id ? colors.background : colors.text }]}>
+                        {message.reply.authorNickname}
+                      </Text>
+                      <Text
+                        style={[styles.replyContent, { color: message.user.id === currentUser?.id ? 'rgba(247,242,236,0.78)' : colors.subtext }]}
+                        numberOfLines={2}
+                      >
+                        {message.reply.content || '사진을 보냈어요'}
+                      </Text>
+                    </View>
                   </View>
                 ) : null}
                 {message.quote ? (
@@ -308,8 +319,10 @@ export default function GroupChatScreen() {
 
       {replyTarget ? (
         <View style={[styles.replyComposer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.replyComposerAccent, { backgroundColor: colors.text }]} />
           <View style={styles.replyComposerCopy}>
-            <Text style={[styles.replyComposerLabel, { color: colors.text }]}>{replyTarget.user.nickname}님에게 답장</Text>
+            <Text style={[styles.replyComposerOverline, { color: colors.subtext }]}>Replying to</Text>
+            <Text style={[styles.replyComposerLabel, { color: colors.text }]}>{replyTarget.user.nickname}</Text>
             <Text style={[styles.replyComposerText, { color: colors.subtext }]} numberOfLines={1}>
               {replyTarget.content || (replyTarget.mediaUrl ? '사진을 보냈어요' : '')}
             </Text>
@@ -405,9 +418,14 @@ const styles = StyleSheet.create({
   bubble: { gap: 10, padding: 12, borderWidth: 1, borderRadius: 24 },
   bubbleMine: { borderColor: 'transparent', borderBottomRightRadius: 8 },
   bubbleTheirs: { borderBottomLeftRadius: 8 },
-  replyCard: { borderWidth: 1, borderRadius: 16, padding: 10, gap: 4 },
+  replyBlock: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
+  replyLine: { width: 3, borderRadius: 999 },
+  replyCard: { flex: 1, borderWidth: 1, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 9, gap: 3 },
+  replyCardMine: { borderColor: 'rgba(247,242,236,0.18)', backgroundColor: 'rgba(247,242,236,0.08)' },
+  replyCardTheirs: {},
+  replyTag: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3, textTransform: 'uppercase' },
   replyAuthor: { fontWeight: '800' },
-  replyContent: { lineHeight: 18 },
+  replyContent: { lineHeight: 18, fontSize: 13 },
   quoteCard: { flexDirection: 'row', gap: 10, borderWidth: 1, borderRadius: 16, padding: 10 },
   quoteCardMine: { borderColor: 'rgba(247,242,236,0.18)', backgroundColor: 'rgba(247,242,236,0.08)' },
   quoteCardTheirs: {},
@@ -419,7 +437,9 @@ const styles = StyleSheet.create({
   messageText: { fontSize: 15, lineHeight: 22 },
   heartText: { fontWeight: '800' },
   replyComposer: { marginHorizontal: 20, borderWidth: 1, borderRadius: 18, padding: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  replyComposerAccent: { width: 4, alignSelf: 'stretch', borderRadius: 999 },
   replyComposerCopy: { flex: 1, gap: 4 },
+  replyComposerOverline: { fontSize: 11, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
   replyComposerLabel: { fontWeight: '800' },
   replyComposerText: { lineHeight: 18 },
   quoteComposer: { marginHorizontal: 20, borderWidth: 1, borderRadius: 18, padding: 12, marginBottom: 10 },

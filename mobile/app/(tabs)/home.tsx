@@ -85,20 +85,28 @@ export default function HomeScreen() {
       }[];
     },
   });
-  const storyItems: StoryItem[] = primaryGroup
-    ? [...primaryGroup.members]
-        .sort((a, b) => (a.id === user?.id ? -1 : b.id === user?.id ? 1 : 0))
-        .map((member) => {
-          const memberStory = storyQuery.data?.find((story) => story.user.id === member.id);
-          return {
-            userId: member.id,
-            nickname: member.id === user?.id ? '내 스토리' : member.nickname,
-            profileImage: member.id === user?.id ? buildProfileImageUrl(user?.profileImage, user?.nickname) : member.profileImage,
-            thumbnail: memberStory?.file_url ? buildAssetUrl(memberStory.file_url) : null,
-            hasStory: Boolean(memberStory),
-          };
-        })
-    : [];
+  const myStory = user
+    ? {
+        userId: user.id,
+        nickname: '내 스토리',
+        profileImage: buildProfileImageUrl(user.profileImage, user.nickname),
+        thumbnail: storyQuery.data?.find((story) => story.user.id === user.id)?.file_url
+          ? buildAssetUrl(storyQuery.data.find((story) => story.user.id === user.id)!.file_url)
+          : null,
+        hasStory: Boolean(storyQuery.data?.some((story) => story.user.id === user.id)),
+      }
+    : null;
+  const followingStoryItems: StoryItem[] =
+    storyQuery.data
+      ?.filter((story) => story.user.id !== user?.id)
+      .map((story) => ({
+        userId: story.user.id,
+        nickname: story.user.nickname,
+        profileImage: buildProfileImageUrl(story.user.profile_image, story.user.nickname),
+        thumbnail: story.file_url ? buildAssetUrl(story.file_url) : null,
+        hasStory: true,
+      })) ?? [];
+  const storyItems: StoryItem[] = myStory ? [myStory, ...followingStoryItems] : followingStoryItems;
   const activeMembers =
     feedQuery.data
       ?.flatMap((slot) => slot.posts)
@@ -154,7 +162,7 @@ export default function HomeScreen() {
           <Text style={[styles.heroSub, { color: colors.subtext }]}>{`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')} 기준으로 친구들의 순간을 보고 있어요.`}</Text>
         </View>
         {currentSlot ? <CountdownCard slot={currentSlot} /> : null}
-        {primaryGroup ? (
+        {storyItems.length ? (
           <StoryStrip
             items={storyItems}
             onPress={(item) => {
