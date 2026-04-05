@@ -628,6 +628,15 @@ export default function GroupDetailScreen() {
                     <FeedCard
                       post={mapped}
                       onPressProfile={(selectedPost) => router.push(`/profile/${selectedPost.user.id}`)}
+                      onOpenMedia={(selectedPost) =>
+                        router.push({
+                          pathname: '/media/viewer',
+                          params: {
+                            uri: encodeURIComponent(selectedPost.thumbnail),
+                            type: selectedPost.mediaType ?? 'image',
+                          },
+                        })
+                      }
                       onComment={(selectedPost) =>
                         router.push({
                           pathname: '/comments/[postId]',

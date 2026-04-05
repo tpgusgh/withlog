@@ -1,7 +1,5 @@
 import { View, Text, TouchableOpacity, TextInput, StyleSheet, Dimensions, Image, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
-import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
@@ -36,7 +34,7 @@ export default function UploadScreen() {
   const [microphonePermission, requestMicrophonePermission] = useMicrophonePermissions();
   const groupId = Number(id);
   const [asset, setAsset] = useState<CapturedAsset | null>(null);
-  const [text, setText] = useState('지금 여기');
+  const [text, setText] = useState('');
   const [captureMode, setCaptureMode] = useState<'image' | 'video'>('image');
   const [isMuted, setIsMuted] = useState(false);
   const [cameraFacing, setCameraFacing] = useState<'back' | 'front'>('back');
@@ -44,8 +42,6 @@ export default function UploadScreen() {
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(new Date());
-  const x = useSharedValue(24);
-  const y = useSharedValue(40);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
@@ -82,8 +78,9 @@ export default function UploadScreen() {
       formData.append('media_type', asset.type);
       formData.append('is_muted', String(isMuted));
       formData.append('caption_text', text);
-      formData.append('text_x', String(x.value / width));
-      formData.append('text_y', String(y.value / (width * 1.35)));
+      formData.append('text_x', '0.5');
+      formData.append('text_y', '0.5');
+      formData.append('text_size', '24');
       formData.append('file', {
         uri: asset.uri,
         name: asset.fileName ?? `upload.${asset.type === 'video' ? 'mp4' : 'jpg'}`,
@@ -185,15 +182,6 @@ export default function UploadScreen() {
     }
     return '지금 업로드 가능한 시간대예요';
   })();
-
-  const gesture = Gesture.Pan().onChange((e) => {
-    x.value += e.changeX;
-    y.value += e.changeY;
-  });
-
-  const overlayStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: x.value }, { translateY: y.value }],
-  }));
 
   const ensurePermissions = async (mode: 'image' | 'video') => {
     const nextCamera = cameraPermission?.granted ? cameraPermission : await requestCameraPermission();
@@ -327,12 +315,10 @@ export default function UploadScreen() {
             </Text>
           </View>
         ) : null}
-        <GestureDetector gesture={gesture}>
-          <Animated.View style={[styles.overlayWrap, overlayStyle]}>
-            <Text style={styles.overlayTime}>{`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`}</Text>
-            <Text style={styles.overlay}>{text}</Text>
-          </Animated.View>
-        </GestureDetector>
+        <View pointerEvents="none" style={styles.overlayWrap}>
+          <Text style={styles.overlayTime}>{`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`}</Text>
+          <Text style={styles.overlay}>{text}</Text>
+        </View>
       </View>
 
       <View style={styles.cameraActionRow}>
@@ -448,9 +434,33 @@ const styles = StyleSheet.create({
     backgroundColor: '#EF4444',
   },
   recordingText: { color: '#FFFFFF', fontWeight: '800', fontSize: 13 },
-  overlayWrap: { position: 'absolute', left: 0, top: 0 },
-  overlayTime: { color: 'white', fontSize: 44, fontWeight: '900', textShadowColor: 'rgba(0,0,0,0.25)', textShadowRadius: 12 },
-  overlay: { color: 'white', fontSize: 26, fontWeight: '500', textShadowColor: 'rgba(0,0,0,0.3)', textShadowRadius: 12, marginTop: 4 },
+  overlayWrap: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  overlayTime: {
+    color: 'white',
+    fontSize: 40,
+    fontWeight: '900',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.25)',
+    textShadowRadius: 12,
+  },
+  overlay: {
+    color: 'white',
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: '600',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowRadius: 12,
+    marginTop: 6,
+  },
   cameraActionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   utilityButton: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 16, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
   utilityButtonText: { color: '#334155', fontWeight: '700' },

@@ -6,6 +6,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -54,6 +55,7 @@ export default function GroupChatScreen() {
   const [selectedMessage, setSelectedMessage] = useState<ChatMessage | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
   const scrollRef = useRef<ScrollView | null>(null);
+  const inputRef = useRef<TextInput | null>(null);
 
   const quote = useMemo(
     () =>
@@ -135,6 +137,13 @@ export default function GroupChatScreen() {
       );
     },
   });
+  const messagesById = useMemo(() => {
+    const map = new Map<number, ChatMessage>();
+    for (const message of chatQuery.data ?? []) {
+      map.set(message.id, message);
+    }
+    return map;
+  }, [chatQuery.data]);
 
   useEffect(() => {
     if (!chatQuery.data?.length) {
@@ -228,19 +237,25 @@ export default function GroupChatScreen() {
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
       >
-        {chatQuery.data?.map((message) => (
-          <View key={message.id} style={[styles.messageRow, message.user.id === currentUser?.id ? styles.messageRowMine : styles.messageRowTheirs]}>
-            {message.user.id !== currentUser?.id ? <Image source={{ uri: message.user.profileImage || buildProfileImageUrl(null, message.user.nickname) }} style={styles.avatar} /> : null}
-            <View style={[styles.messageWrap, message.user.id === currentUser?.id ? styles.messageWrapMine : styles.messageWrapTheirs]}>
+        {chatQuery.data?.map((message) => {
+          const repliedMessage = message.reply?.messageId ? messagesById.get(message.reply.messageId) : null;
+          const replyAuthor = message.reply?.authorNickname || repliedMessage?.user.nickname || '이전 메시지';
+          const replyContent = (message.reply?.content || repliedMessage?.content || '').trim();
+          const replyFallback = repliedMessage?.mediaUrl ? '사진 또는 첨부 메시지' : '이전 메시지';
+
+          return (
+            <View key={message.id} style={[styles.messageRow, message.user.id === currentUser?.id ? styles.messageRowMine : styles.messageRowTheirs]}>
+              {message.user.id !== currentUser?.id ? <Image source={{ uri: message.user.profileImage || buildProfileImageUrl(null, message.user.nickname) }} style={styles.avatar} /> : null}
+              <View style={[styles.messageWrap, message.user.id === currentUser?.id ? styles.messageWrapMine : styles.messageWrapTheirs]}>
               <View style={[styles.messageMeta, message.user.id === currentUser?.id ? styles.messageMetaMine : styles.messageMetaTheirs]}>
                 {message.user.id === currentUser?.id ? <Image source={{ uri: message.user.profileImage || buildProfileImageUrl(null, message.user.nickname) }} style={styles.myAvatar} /> : null}
                 {message.user.id !== currentUser?.id ? <Text style={[styles.author, { color: colors.text }]}>{message.user.nickname}</Text> : null}
                 <Text style={[styles.time, { color: colors.subtext }]}>{message.createdAt}</Text>
               </View>
-              <TouchableOpacity
-                activeOpacity={0.92}
+              <Pressable
                 delayLongPress={220}
                 onLongPress={() => setSelectedMessage(message)}
+                hitSlop={8}
                 style={[
                   styles.bubble,
                   message.user.id === currentUser?.id
@@ -259,23 +274,35 @@ export default function GroupChatScreen() {
                     <View
                       style={[
                         styles.replyCard,
+                        !replyContent && styles.replyCardCompact,
                         message.user.id === currentUser?.id
                           ? styles.replyCardMine
                           : [styles.replyCardTheirs, { backgroundColor: colors.background, borderColor: colors.border }],
                       ]}
                     >
-                      <Text style={[styles.replyTag, { color: message.user.id === currentUser?.id ? 'rgba(247,242,236,0.82)' : colors.subtext }]}>
-                        Replying to
-                      </Text>
-                      <Text style={[styles.replyAuthor, { color: message.user.id === currentUser?.id ? colors.background : colors.text }]}>
-                        {message.reply.authorNickname}
-                      </Text>
-                      <Text
-                        style={[styles.replyContent, { color: message.user.id === currentUser?.id ? 'rgba(247,242,236,0.78)' : colors.subtext }]}
-                        numberOfLines={2}
-                      >
-                        {message.reply.content || '사진을 보냈어요'}
-                      </Text>
+                      <View style={styles.replyHeaderRow}>
+                        <Text style={[styles.replyTag, { color: message.user.id === currentUser?.id ? 'rgba(247,242,236,0.82)' : colors.subtext }]}>
+                          답장
+                        </Text>
+                        <Text style={[styles.replyAuthor, { color: message.user.id === currentUser?.id ? colors.background : colors.text }]} numberOfLines={1}>
+                          {replyAuthor}
+                        </Text>
+                      </View>
+                      {replyContent ? (
+                        <Text
+                          style={[styles.replyContent, { color: message.user.id === currentUser?.id ? 'rgba(247,242,236,0.78)' : colors.subtext }]}
+                          numberOfLines={2}
+                        >
+                          {replyContent}
+                        </Text>
+                      ) : (
+                        <Text
+                          style={[styles.replyMetaOnly, { color: message.user.id === currentUser?.id ? 'rgba(247,242,236,0.7)' : colors.subtext }]}
+                          numberOfLines={1}
+                        >
+                          {replyFallback}
+                        </Text>
+                      )}
                     </View>
                   </View>
                 ) : null}
@@ -302,7 +329,22 @@ export default function GroupChatScreen() {
                     </View>
                   </View>
                 ) : null}
-                {message.mediaUrl ? <Image source={{ uri: message.mediaUrl }} style={styles.chatImage} /> : null}
+                {message.mediaUrl ? (
+                  <TouchableOpacity
+                    activeOpacity={0.95}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/media/viewer',
+                        params: {
+                          uri: encodeURIComponent(message.mediaUrl ?? ''),
+                          type: message.mediaType ?? 'image',
+                        },
+                      })
+                    }
+                  >
+                    <Image source={{ uri: message.mediaUrl }} style={styles.chatImage} />
+                  </TouchableOpacity>
+                ) : null}
                 {!!message.content && (
                   <Text style={[styles.messageText, { color: message.user.id === currentUser?.id ? colors.background : colors.text }]}>
                     {message.content}
@@ -311,10 +353,26 @@ export default function GroupChatScreen() {
                 {message.messageType === 'heart' ? (
                   <Text style={[styles.heartText, { color: message.user.id === currentUser?.id ? '#FFD5DE' : '#FB7185' }]}>하트를 보냈어요</Text>
                 ) : null}
+              </Pressable>
+              <TouchableOpacity
+                style={[
+                  styles.replyButton,
+                  message.user.id === currentUser?.id
+                    ? [styles.replyButtonMine, { backgroundColor: colors.card, borderColor: colors.border }]
+                    : [styles.replyButtonTheirs, { backgroundColor: colors.background, borderColor: colors.border }],
+                ]}
+                onPress={() => {
+                  setReplyTarget(message);
+                  requestAnimationFrame(() => inputRef.current?.focus());
+                }}
+              >
+                <Ionicons name="arrow-undo-outline" size={12} color={colors.subtext} />
+                <Text style={[styles.replyButtonText, { color: colors.subtext }]}>답장</Text>
               </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        ))}
+          );
+        })}
       </ScrollView>
 
       {replyTarget ? (
@@ -341,8 +399,8 @@ export default function GroupChatScreen() {
       {selectedImage ? <Image source={{ uri: selectedImage.uri }} style={styles.selectedImage} /> : null}
 
       <Modal visible={Boolean(selectedMessage)} transparent animationType="fade" onRequestClose={() => setSelectedMessage(null)}>
-        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setSelectedMessage(null)}>
-          <View style={[styles.actionSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setSelectedMessage(null)}>
+          <Pressable style={[styles.actionSheet, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={(event) => event.stopPropagation()}>
             <Text style={[styles.actionTitle, { color: colors.text }]}>메시지 액션</Text>
             <Text style={[styles.actionCaption, { color: colors.subtext }]} numberOfLines={2}>
               {selectedMessage?.content || (selectedMessage?.mediaUrl ? '사진을 보냈어요' : '')}
@@ -352,6 +410,7 @@ export default function GroupChatScreen() {
               onPress={() => {
                 if (selectedMessage) {
                   setReplyTarget(selectedMessage);
+                  requestAnimationFrame(() => inputRef.current?.focus());
                 }
                 setSelectedMessage(null);
               }}
@@ -361,8 +420,8 @@ export default function GroupChatScreen() {
             <TouchableOpacity style={styles.actionSecondary} onPress={() => setSelectedMessage(null)}>
               <Text style={[styles.actionSecondaryText, { color: colors.subtext }]}>닫기</Text>
             </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       <View style={[styles.composerShell, { borderTopColor: colors.border, backgroundColor: colors.background, paddingBottom: Math.max(insets.bottom, 12) }]}>
@@ -371,6 +430,7 @@ export default function GroupChatScreen() {
             <Ionicons name="image-outline" size={22} color={colors.text} />
           </TouchableOpacity>
           <TextInput
+            ref={inputRef}
             value={text}
             onChangeText={setText}
             multiline
@@ -418,14 +478,17 @@ const styles = StyleSheet.create({
   bubble: { gap: 10, padding: 12, borderWidth: 1, borderRadius: 24 },
   bubbleMine: { borderColor: 'transparent', borderBottomRightRadius: 8 },
   bubbleTheirs: { borderBottomLeftRadius: 8 },
-  replyBlock: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
-  replyLine: { width: 3, borderRadius: 999 },
-  replyCard: { flex: 1, borderWidth: 1, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 9, gap: 3 },
-  replyCardMine: { borderColor: 'rgba(247,242,236,0.18)', backgroundColor: 'rgba(247,242,236,0.08)' },
+  replyBlock: { flexDirection: 'row', alignItems: 'stretch', gap: 10, marginBottom: 2 },
+  replyLine: { width: 4, borderRadius: 999 },
+  replyCard: { alignSelf: 'flex-start', maxWidth: 220, borderWidth: 1, borderRadius: 18, paddingHorizontal: 12, paddingVertical: 10, gap: 4 },
+  replyCardCompact: { gap: 2, paddingVertical: 8, maxWidth: 170 },
+  replyCardMine: { borderColor: 'rgba(247,242,236,0.22)', backgroundColor: 'rgba(247,242,236,0.12)' },
   replyCardTheirs: {},
-  replyTag: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3, textTransform: 'uppercase' },
-  replyAuthor: { fontWeight: '800' },
+  replyHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'nowrap' },
+  replyTag: { fontSize: 11, fontWeight: '800', letterSpacing: 0.2 },
+  replyAuthor: { fontWeight: '900', fontSize: 13, flexShrink: 1 },
   replyContent: { lineHeight: 18, fontSize: 13 },
+  replyMetaOnly: { fontSize: 12, lineHeight: 16, fontWeight: '600' },
   quoteCard: { flexDirection: 'row', gap: 10, borderWidth: 1, borderRadius: 16, padding: 10 },
   quoteCardMine: { borderColor: 'rgba(247,242,236,0.18)', backgroundColor: 'rgba(247,242,236,0.08)' },
   quoteCardTheirs: {},
@@ -433,10 +496,23 @@ const styles = StyleSheet.create({
   quoteCopy: { flex: 1, justifyContent: 'center' },
   quoteAuthor: { fontWeight: '800' },
   quoteCaption: { marginTop: 4, lineHeight: 18 },
-  chatImage: { width: 200, height: 240, borderRadius: 18, backgroundColor: '#CBD5E1' },
+  chatImage: { width: 252, height: 316, borderRadius: 18, backgroundColor: '#CBD5E1' },
   messageText: { fontSize: 15, lineHeight: 22 },
   heartText: { fontWeight: '800' },
-  replyComposer: { marginHorizontal: 20, borderWidth: 1, borderRadius: 18, padding: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  replyButton: {
+    marginTop: 6,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  replyButtonMine: { alignSelf: 'flex-end' },
+  replyButtonTheirs: { alignSelf: 'flex-start' },
+  replyButtonText: { fontSize: 12, fontWeight: '700' },
+  replyComposer: { marginHorizontal: 20, borderWidth: 1, borderRadius: 20, padding: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   replyComposerAccent: { width: 4, alignSelf: 'stretch', borderRadius: 999 },
   replyComposerCopy: { flex: 1, gap: 4 },
   replyComposerOverline: { fontSize: 11, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },

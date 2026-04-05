@@ -19,23 +19,27 @@ export function FeedCard({
   onHeart,
   onComment,
   onPressProfile,
+  onOpenMedia,
 }: {
   post: Post;
   onQuote?: (post: Post) => void;
   onHeart?: (post: Post) => void;
   onComment?: (post: Post) => void;
   onPressProfile?: (post: Post) => void;
+  onOpenMedia?: (post: Post) => void;
 }) {
   const { isDark } = useAppTheme();
   const displayDate = post.dateLabel ?? formatDisplayDate(new Date());
 
   return (
     <View style={[styles.card, isDark && styles.cardDark]}>
-      {post.mediaType === 'video' ? (
-        <Video source={{ uri: post.thumbnail }} style={styles.image} isMuted resizeMode={ResizeMode.COVER} shouldPlay isLooping />
-      ) : (
-        <Image source={{ uri: post.thumbnail }} style={styles.image} />
-      )}
+      <TouchableOpacity activeOpacity={0.96} onPress={() => onOpenMedia?.(post)}>
+        {post.mediaType === 'video' ? (
+          <Video source={{ uri: post.thumbnail }} style={styles.image} isMuted resizeMode={ResizeMode.COVER} shouldPlay isLooping />
+        ) : (
+          <Image source={{ uri: post.thumbnail }} style={styles.image} />
+        )}
+      </TouchableOpacity>
       <View style={styles.overlay}>
         <View style={styles.topRow}>
           <TouchableOpacity style={styles.userBadge} activeOpacity={onPressProfile ? 0.8 : 1} onPress={() => onPressProfile?.(post)} disabled={!onPressProfile}>

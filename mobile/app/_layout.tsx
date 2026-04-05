@@ -92,6 +92,7 @@ export default function RootLayout() {
           <Stack.Screen name="group/upload" options={{ headerShown: true, title: '사진 등록' }} />
           <Stack.Screen name="group/daily-video" options={{ headerShown: true, title: '오늘의 요약 영상' }} />
           <Stack.Screen name="group/chat" options={{ headerShown: false }} />
+          <Stack.Screen name="media/viewer" options={{ headerShown: false, presentation: 'modal', animation: 'fade' }} />
           <Stack.Screen name="comments/[postId]" options={{ headerShown: true, title: '댓글' }} />
           <Stack.Screen name="story/create" options={{ headerShown: true, title: '홈 스토리 올리기' }} />
           <Stack.Screen name="story/[id]" options={{ headerShown: false, presentation: 'modal', animation: 'fade' }} />
