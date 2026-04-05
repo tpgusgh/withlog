@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from fastapi import APIRouter, Depends, Form, UploadFile, File, HTTPException
 from sqlalchemy.orm import Session
@@ -30,7 +30,13 @@ async def upload_post(
     slot = db.query(Slot).filter(Slot.id == slot_id).first()
     if not slot:
         raise HTTPException(status_code=404, detail='Slot not found')
-    close_at = datetime.fromisoformat(slot.close_at)
+    open_at = datetime.fromisoformat(slot.open_at)
+    close_at = open_at + timedelta(hours=1)
+    if slot.close_at != close_at.isoformat() or slot.status != ('open' if datetime.now() < close_at else 'closed'):
+        slot.close_at = close_at.isoformat()
+        slot.status = 'open' if datetime.now() < close_at else 'closed'
+        db.add(slot)
+        db.commit()
     if datetime.now() > close_at:
         raise HTTPException(status_code=400, detail='Upload window closed')
 

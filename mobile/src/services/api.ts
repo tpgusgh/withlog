@@ -2,14 +2,9 @@ import axios from 'axios';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-const DEFAULT_API_URL = 'http://192.168.219.101:8000';
+const DEFAULT_API_URL = 'https://api.mieung.kr';
 
 const resolveApiBaseUrl = () => {
-  const configuredUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
-  if (configuredUrl) {
-    return configuredUrl.replace(/\/$/, '');
-  }
-
   if (DEFAULT_API_URL) {
     return DEFAULT_API_URL;
   }

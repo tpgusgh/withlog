@@ -223,14 +223,22 @@ def current_slot(group_id: int, db: Session = Depends(get_db), current_user: Use
     slot_hour = now.hour
     slot_date = now.strftime('%Y-%m-%d')
     open_at = now.replace(minute=0, second=0, microsecond=0)
-    close_at = open_at + timedelta(minutes=30)
+    close_at = open_at + timedelta(hours=1)
     slot = db.query(Slot).filter(Slot.group_id == group_id, Slot.slot_date == slot_date, Slot.slot_hour == slot_hour).first()
     if not slot:
         slot = Slot(group_id=group_id, slot_date=slot_date, slot_hour=slot_hour, open_at=open_at.isoformat(), close_at=close_at.isoformat(), status='open' if now < close_at else 'closed')
         db.add(slot)
         db.commit()
         db.refresh(slot)
-    return {'slot_id': slot.id, 'slot_date': slot.slot_date, 'slot_hour': slot.slot_hour, 'open_at': slot.open_at, 'close_at': slot.close_at, 'is_open': now < close_at}
+    else:
+        expected_close_at = datetime.fromisoformat(slot.open_at) + timedelta(hours=1)
+        if slot.close_at != expected_close_at.isoformat() or slot.status != ('open' if now < expected_close_at else 'closed'):
+            slot.close_at = expected_close_at.isoformat()
+            slot.status = 'open' if now < expected_close_at else 'closed'
+            db.add(slot)
+            db.commit()
+            db.refresh(slot)
+    return {'slot_id': slot.id, 'slot_date': slot.slot_date, 'slot_hour': slot.slot_hour, 'open_at': slot.open_at, 'close_at': slot.close_at, 'is_open': now < datetime.fromisoformat(slot.close_at)}
 
 @router.get('/{group_id}/feed')
 def group_feed(group_id: int, date: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
