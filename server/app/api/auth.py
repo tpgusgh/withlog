@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.core.auth import get_current_user
 from app.db.session import get_db
-from app.models.group import ChatMessage, Group, GroupMember, Post
+from app.models.group import ChatMessage, Comment, CommentReaction, DailyVideo, Group, GroupMember, Like, Post, Slot, UserStory
 from app.models.user import User, Follow, Block, EmailVerification
 from app.schemas.auth import EmailRequestIn, EmailRequestOut, EmailVerifyIn, EmailVerifyOut, SignupIn, LoginIn, TokenOut, ProfileOut
 from app.core.security import hash_password, verify_password, create_access_token, create_email_verification_token, decode_access_token
@@ -19,7 +19,8 @@ from app.core.security import hash_password, verify_password, create_access_toke
 load_dotenv(Path(__file__).resolve().parents[2] / '.env')
 
 router = APIRouter()
-UPLOAD_DIR = Path('uploads/profile')
+SERVER_ROOT = Path(__file__).resolve().parents[2]
+UPLOAD_DIR = SERVER_ROOT / 'uploads' / 'profile'
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 SMTP_HOST = os.getenv('SMTP_HOST')
@@ -59,6 +60,67 @@ def send_verification_email(email: str, code: str):
         return True
     except Exception:
         return False
+
+
+def delete_local_upload(path_value: str | None):
+    if not path_value or not path_value.startswith('/uploads/'):
+        return
+    target = SERVER_ROOT / path_value.lstrip('/')
+    try:
+        if target.exists() and target.is_file():
+            target.unlink()
+    except OSError:
+        pass
+
+
+def delete_generated_file(path_value: str | None):
+    if not path_value or not path_value.startswith('/generated/'):
+        return
+    target = SERVER_ROOT / path_value.lstrip('/')
+    try:
+        if target.exists() and target.is_file():
+            target.unlink()
+    except OSError:
+        pass
+
+
+def delete_group_contents(group_id: int, db: Session):
+    slots = db.query(Slot).filter(Slot.group_id == group_id).all()
+    slot_ids = [slot.id for slot in slots]
+    posts = db.query(Post).filter(Post.group_id == group_id).all()
+    post_ids = [post.id for post in posts]
+
+    for post in posts:
+        delete_local_upload(post.file_url)
+        delete_local_upload(post.thumbnail_url)
+
+    if post_ids:
+        comment_ids = [comment_id for comment_id, in db.query(Comment.id).filter(Comment.post_id.in_(post_ids)).all()]
+        if comment_ids:
+            db.query(CommentReaction).filter(CommentReaction.comment_id.in_(comment_ids)).delete(synchronize_session=False)
+        db.query(Like).filter(Like.post_id.in_(post_ids)).delete(synchronize_session=False)
+        db.query(Comment).filter(Comment.post_id.in_(post_ids)).delete(synchronize_session=False)
+
+    daily_videos = db.query(DailyVideo).filter(DailyVideo.group_id == group_id).all()
+    for daily_video in daily_videos:
+        delete_generated_file(daily_video.output_url)
+        db.delete(daily_video)
+
+    chat_messages = db.query(ChatMessage).filter(ChatMessage.group_id == group_id).all()
+    for message in chat_messages:
+        delete_local_upload(message.media_url)
+        db.delete(message)
+
+    for post in posts:
+        db.delete(post)
+
+    if slot_ids:
+        db.query(Slot).filter(Slot.id.in_(slot_ids)).delete(synchronize_session=False)
+
+    db.query(GroupMember).filter(GroupMember.group_id == group_id).delete(synchronize_session=False)
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if group:
+        db.delete(group)
 
 @router.post('/signup', response_model=TokenOut)
 def signup(payload: SignupIn, db: Session = Depends(get_db)):
@@ -309,6 +371,57 @@ async def update_me(
     db.commit()
     db.refresh(current_user)
     return serialize_profile(current_user, db)
+
+
+@router.delete('/me')
+def delete_me(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    owned_group_ids = [
+        group_id
+        for group_id, in db.query(Group.id).filter(Group.owner_id == current_user.id).all()
+    ]
+    for group_id in owned_group_ids:
+        delete_group_contents(group_id, db)
+
+    remaining_posts = db.query(Post).filter(Post.user_id == current_user.id).all()
+    remaining_post_ids = [post.id for post in remaining_posts]
+    for post in remaining_posts:
+        delete_local_upload(post.file_url)
+        delete_local_upload(post.thumbnail_url)
+    if remaining_post_ids:
+        comment_ids = [comment_id for comment_id, in db.query(Comment.id).filter(Comment.post_id.in_(remaining_post_ids)).all()]
+        if comment_ids:
+            db.query(CommentReaction).filter(CommentReaction.comment_id.in_(comment_ids)).delete(synchronize_session=False)
+        db.query(Like).filter(Like.post_id.in_(remaining_post_ids)).delete(synchronize_session=False)
+        db.query(Comment).filter(Comment.post_id.in_(remaining_post_ids)).delete(synchronize_session=False)
+        db.query(Post).filter(Post.id.in_(remaining_post_ids)).delete(synchronize_session=False)
+
+    own_comments = db.query(Comment).filter(Comment.user_id == current_user.id).all()
+    own_comment_ids = [comment.id for comment in own_comments]
+    if own_comment_ids:
+        db.query(CommentReaction).filter(CommentReaction.comment_id.in_(own_comment_ids)).delete(synchronize_session=False)
+        db.query(Comment).filter(Comment.parent_id.in_(own_comment_ids)).delete(synchronize_session=False)
+        db.query(Comment).filter(Comment.id.in_(own_comment_ids)).delete(synchronize_session=False)
+
+    stories = db.query(UserStory).filter(UserStory.user_id == current_user.id).all()
+    for story in stories:
+        delete_local_upload(story.file_url)
+        db.delete(story)
+
+    messages = db.query(ChatMessage).filter(ChatMessage.user_id == current_user.id).all()
+    for message in messages:
+        delete_local_upload(message.media_url)
+        db.delete(message)
+
+    delete_local_upload(current_user.profile_image)
+    db.query(Like).filter(Like.user_id == current_user.id).delete(synchronize_session=False)
+    db.query(CommentReaction).filter(CommentReaction.user_id == current_user.id).delete(synchronize_session=False)
+    db.query(Follow).filter((Follow.follower_id == current_user.id) | (Follow.following_id == current_user.id)).delete(synchronize_session=False)
+    db.query(Block).filter((Block.blocker_id == current_user.id) | (Block.blocked_id == current_user.id)).delete(synchronize_session=False)
+    db.query(GroupMember).filter(GroupMember.user_id == current_user.id).delete(synchronize_session=False)
+    db.query(EmailVerification).filter(EmailVerification.email == current_user.email).delete(synchronize_session=False)
+    db.delete(current_user)
+    db.commit()
+    return {'deleted': True}
 
 
 @router.get('/users')
