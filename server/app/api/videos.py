@@ -42,6 +42,7 @@ def generate_daily_video(group_id: int, date: str, db: Session = Depends(get_db)
                     'nickname': member.nickname,
                     'media_path': post.file_url if post else None,
                     'media_type': post.media_type if post else None,
+                    'caption': post.caption_text if post else '',
                 }
             )
         slot_layouts.append({'hour': hour, 'entries': entries})

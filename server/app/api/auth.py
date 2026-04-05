@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.core.auth import get_current_user
 from app.db.session import get_db
-from app.models.group import Group, GroupMember
+from app.models.group import ChatMessage, Group, GroupMember, Post
 from app.models.user import User, Follow, Block, EmailVerification
 from app.schemas.auth import EmailRequestIn, EmailRequestOut, EmailVerifyIn, EmailVerifyOut, SignupIn, LoginIn, TokenOut, ProfileOut
 from app.core.security import hash_password, verify_password, create_access_token, create_email_verification_token, decode_access_token

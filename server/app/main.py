@@ -9,13 +9,14 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from app.api import auth, groups, posts, videos, comments, stories
 from app.db.session import Base, SessionLocal, engine
-from app.models.group import ChatMessage, Comment, CommentReaction, Like, Post, UserStory
+from app.models.group import ChatMessage, Comment, CommentReaction, DailyVideo, Like, Post, UserStory
 
 Base.metadata.create_all(bind=engine)
 SERVER_ROOT = Path(__file__).resolve().parents[1]
 UPLOAD_ROOT = SERVER_ROOT / 'uploads'
 GENERATED_ROOT = SERVER_ROOT / 'generated'
 RETENTION_DAYS = 7
+DAILY_VIDEO_RETENTION_HOURS = 24
 GENERATED_ROOT.mkdir(exist_ok=True)
 
 
@@ -85,8 +86,20 @@ def delete_local_upload(path_value: str | None):
         pass
 
 
+def delete_generated_file(path_value: str | None):
+    if not path_value or not path_value.startswith('/generated/'):
+        return
+    target = SERVER_ROOT / path_value.lstrip('/')
+    try:
+        if target.exists() and target.is_file():
+            target.unlink()
+    except OSError:
+        pass
+
+
 def cleanup_expired_media():
     cutoff = datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS)
+    daily_video_cutoff = datetime.now(timezone.utc) - timedelta(hours=DAILY_VIDEO_RETENTION_HOURS)
     with SessionLocal() as session:
         expired_posts = session.query(Post).filter(Post.created_at < cutoff).all()
         expired_post_ids = [post.id for post in expired_posts]
@@ -134,6 +147,11 @@ def cleanup_expired_media():
             delete_local_upload(message.media_url)
             message.media_url = None
             message.media_type = None
+
+        expired_daily_videos = session.query(DailyVideo).filter(DailyVideo.created_at < daily_video_cutoff).all()
+        for daily_video in expired_daily_videos:
+            delete_generated_file(daily_video.output_url)
+            session.delete(daily_video)
 
         session.commit()
 
