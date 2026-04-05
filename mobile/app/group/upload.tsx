@@ -70,9 +70,13 @@ export default function UploadScreen() {
 
   const uploadMutation = useMutation({
     mutationFn: async () => {
-      if (!asset || !slotQuery.data?.slot_id) {
+      if (!asset) {
         throw new Error('업로드할 파일을 먼저 선택하세요.');
       }
+
+      const latestSlotResponse = await api.get(`/groups/${groupId}/current-slot`);
+      const latestSlot = latestSlotResponse.data as { slot_id: number; is_open: boolean; slot_hour?: number; close_at?: string; slot_date?: string };
+      queryClient.setQueryData(['current-slot', groupId], latestSlot);
 
       const formData = new FormData();
       formData.append('media_type', asset.type);
@@ -87,7 +91,7 @@ export default function UploadScreen() {
         type: asset.mimeType ?? (asset.type === 'video' ? 'video/mp4' : 'image/jpeg'),
       } as never);
 
-      const response = await api.post(`/posts/slot/${slotQuery.data.slot_id}`, formData, {
+      const response = await api.post(`/posts/slot/${latestSlot.slot_id}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       return response.data as { id: number; file_url: string; is_muted: boolean };
@@ -176,9 +180,6 @@ export default function UploadScreen() {
     const slot = slotQuery.data;
     if (!slot) {
       return '현재 1시간 슬롯 불러오는 중';
-    }
-    if (!slot.is_open) {
-      return '이번 1시간 슬롯 업로드가 종료됐어요';
     }
     return '이 시간 슬롯은 정각부터 59분까지 올릴 수 있어요';
   })();
@@ -269,7 +270,7 @@ export default function UploadScreen() {
           {slotQuery.data ? `${String(new Date().getHours()).padStart(2, '0')}:00` : '--:--'}
         </Text>
         <Text style={[styles.infoCopy, isDark && styles.infoCopyDark]}>
-          {slotQuery.data?.is_open ? '앱 안 카메라로 바로 찍고 올릴 수 있어요.' : '다음 슬롯이 열리면 다시 시도할 수 있어요.'}
+          {slotQuery.data ? '앱 안 카메라로 바로 찍고 올릴 수 있어요.' : '슬롯 정보를 불러오는 중이에요.'}
         </Text>
       </View>
 
@@ -370,7 +371,7 @@ export default function UploadScreen() {
         ) : null}
       </View>
 
-      <TouchableOpacity style={[styles.submit, (!slotQuery.data?.is_open || uploadMutation.isPending) && styles.submitDisabled]} onPress={() => uploadMutation.mutate()} disabled={uploadMutation.isPending || !slotQuery.data?.is_open}>
+      <TouchableOpacity style={[styles.submit, (uploadMutation.isPending || !slotQuery.data?.slot_id) && styles.submitDisabled]} onPress={() => uploadMutation.mutate()} disabled={uploadMutation.isPending || !slotQuery.data?.slot_id}>
         <Text style={styles.submitText}>{uploadMutation.isPending ? '업로드 중...' : '이 스토리 올리기'}</Text>
       </TouchableOpacity>
     </ScrollView>

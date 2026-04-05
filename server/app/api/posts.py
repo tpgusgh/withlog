@@ -47,6 +47,29 @@ async def upload_post(
     if not slot:
         raise HTTPException(status_code=404, detail='Slot not found')
     now = local_now()
+    current_slot_date = now.strftime('%Y-%m-%d')
+    current_slot_hour = now.hour
+    if slot.slot_date != current_slot_date or slot.slot_hour != current_slot_hour:
+        current_slot = (
+            db.query(Slot)
+            .filter(Slot.group_id == slot.group_id, Slot.slot_date == current_slot_date, Slot.slot_hour == current_slot_hour)
+            .first()
+        )
+        if not current_slot:
+            current_open_at, current_close_at = slot_window(current_slot_date, current_slot_hour)
+            current_slot = Slot(
+                group_id=slot.group_id,
+                slot_date=current_slot_date,
+                slot_hour=current_slot_hour,
+                open_at=current_open_at.isoformat(),
+                close_at=current_close_at.isoformat(),
+                status='open' if now < current_close_at else 'closed',
+            )
+            db.add(current_slot)
+            db.commit()
+            db.refresh(current_slot)
+        slot = current_slot
+
     open_at, close_at = slot_window(slot.slot_date, slot.slot_hour)
     if (
         slot.open_at != open_at.isoformat()
