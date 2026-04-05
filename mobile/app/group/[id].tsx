@@ -144,13 +144,7 @@ export default function GroupDetailScreen() {
   const { width } = useWindowDimensions();
   const pageWidth = Math.max(width - 16, 1);
   const timelineRef = useRef<ScrollView>(null);
-  const [now, setNow] = useState(new Date());
   const [activeIndex, setActiveIndex] = useState(23);
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   const groupQuery = useQuery({
     queryKey: ['group', groupId],
@@ -171,7 +165,7 @@ export default function GroupDetailScreen() {
   });
 
   const anchorDate = slotQuery.data?.slot_date ?? formatLocalDate();
-  const anchorHour = slotQuery.data?.slot_hour ?? now.getHours();
+  const anchorHour = slotQuery.data?.slot_hour ?? new Date().getHours();
   const yesterday = new Date(`${anchorDate}T00:00:00`);
   yesterday.setDate(yesterday.getDate() - 1);
   const previousDate = formatLocalDate(yesterday);
@@ -322,17 +316,11 @@ export default function GroupDetailScreen() {
   };
 
   const deadlineText = (() => {
-    const closeAt = slotQuery.data?.close_at;
-    if (!closeAt) {
+    const slotHour = slotQuery.data?.slot_hour;
+    if (slotHour === undefined) {
       return '현재 슬롯 확인 중';
     }
-    const remain = new Date(closeAt).getTime() - now.getTime();
-    if (remain <= 0) {
-      return '이번 슬롯이 닫혔어요';
-    }
-    const closeDate = new Date(closeAt);
-    const displayHour = String(closeDate.getHours()).padStart(2, '0');
-    return `${displayHour}:59까지 업로드 가능`;
+    return `${String(slotHour).padStart(2, '0')}:59까지 업로드 가능`;
   })();
 
   const timeline = useMemo(() => buildRecentHourTimeline(anchorDate, anchorHour, 24), [anchorDate, anchorHour]);

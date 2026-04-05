@@ -10,14 +10,15 @@ from app.models.group import UserStory
 from app.models.user import Block, Follow, User
 
 router = APIRouter()
-UPLOAD_DIR = Path('uploads/stories')
+SERVER_ROOT = Path(__file__).resolve().parents[2]
+UPLOAD_DIR = SERVER_ROOT / 'uploads' / 'stories'
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def delete_local_story_file(path_value: str | None):
     if not path_value or not path_value.startswith('/uploads/'):
         return
-    target = Path(path_value.lstrip('/'))
+    target = SERVER_ROOT / path_value.lstrip('/')
     try:
         if target.exists() and target.is_file():
             target.unlink()

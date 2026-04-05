@@ -6,8 +6,6 @@ import { defaultProfileSettings, type LocalProfileSettings } from '@/services/pr
 
 const REMINDER_TITLE = '새 슬롯이 열렸어요';
 const REMINDER_BODY = '지금 그룹에 스토리를 올릴 시간입니다.';
-const LAST_CALL_TITLE = '마감 5분 전이에요';
-const LAST_CALL_BODY = '제발 지금 한 장만 올려줘요. 이번 슬롯 곧 닫혀요.';
 
 let lastActivityCheckedAt = '';
 const shownActivityIds = new Set<string>();
@@ -44,12 +42,6 @@ const nextSlotDate = (base: Date, offset: number) => {
   const next = new Date(base);
   next.setMinutes(0, 0, 0);
   next.setHours(next.getHours() + offset);
-  return next;
-};
-
-const slotClosingReminderDate = (slotStart: Date) => {
-  const next = new Date(slotStart);
-  next.setMinutes(25, 0, 0);
   return next;
 };
 
@@ -107,22 +99,6 @@ export const syncLocalNotifications = async (settings?: LocalProfileSettings) =>
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
           date: slotStart,
-          channelId: 'withlog-reminders',
-        },
-      });
-    }
-
-    const lastCall = slotClosingReminderDate(slotStart);
-    if (lastCall.getTime() > now.getTime() && !isInQuietHours(lastCall, resolved)) {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: LAST_CALL_TITLE,
-          body: LAST_CALL_BODY,
-          sound: true,
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DATE,
-          date: lastCall,
           channelId: 'withlog-reminders',
         },
       });

@@ -1,31 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import type { SlotSummary } from '@/types';
 import { useAppTheme } from '@/store/theme';
 
-const formatDeadline = (closeAt: string) => {
-  const remainingMs = new Date(closeAt).getTime() - Date.now();
-  if (remainingMs <= 0) {
-    return '닫힘';
-  }
-
-  const closeDate = new Date(closeAt);
-  const displayHour = String(closeDate.getHours()).padStart(2, '0');
+const formatDeadline = (hour: string) => {
+  const displayHour = hour.slice(0, 2).padStart(2, '0');
   return `${displayHour}:59까지 업로드 가능`;
 };
 
 export function CountdownCard({ slot }: { slot: SlotSummary }) {
-  const { colors, isDark } = useAppTheme();
+  const { colors } = useAppTheme();
   const activeMembers = Array.isArray(slot.activeMembers) ? slot.activeMembers : [];
-  const [deadlineText, setDeadlineText] = useState(() => formatDeadline(slot.closeAt));
-
-  useEffect(() => {
-    setDeadlineText(formatDeadline(slot.closeAt));
-    const timer = setInterval(() => {
-      setDeadlineText(formatDeadline(slot.closeAt));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [slot.closeAt]);
+  const deadlineText = useMemo(() => formatDeadline(slot.hour), [slot.hour]);
 
   return (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -34,7 +20,7 @@ export function CountdownCard({ slot }: { slot: SlotSummary }) {
       </View>
       <Text style={[styles.title, { color: colors.subtext }]}>현재 업로드 슬롯</Text>
       <Text style={[styles.hour, { color: colors.text }]}>{slot.hour}</Text>
-      <Text style={styles.sub}>{deadlineText === '닫힘' ? '이번 슬롯이 닫혔어요' : deadlineText}</Text>
+      <Text style={styles.sub}>{deadlineText}</Text>
       <View style={styles.memberRow}>
         {activeMembers.length ? (
           activeMembers.slice(0, 4).map((member) => (
