@@ -1,5 +1,5 @@
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Video, ResizeMode } from 'expo-av';
 import type { Post } from '@/types';
 import { useAppTheme } from '@/store/theme';
@@ -41,7 +41,10 @@ export function FeedCard({
               {post.user.profileImage ? <Image source={{ uri: post.user.profileImage }} style={styles.avatar} /> : <View style={styles.avatar} />}
             </View>
             <View style={styles.namePill}>
-              <Text style={styles.user}>{post.user.nickname}</Text>
+              <View style={styles.userRow}>
+                <Text style={styles.user}>{post.user.nickname}</Text>
+                {post.user.isOwner ? <MaterialCommunityIcons name="crown" size={13} color="#F59E0B" /> : null}
+              </View>
             </View>
           </TouchableOpacity>
           <Text style={styles.date}>{displayDate}</Text>
@@ -107,6 +110,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     minWidth: 120,
   },
+  userRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   user: { color: 'white', fontWeight: '700' },
   date: { color: 'white', fontSize: 18, fontWeight: '500', letterSpacing: 0.4 },
   centerCopy: { alignItems: 'center', marginTop: 46 },

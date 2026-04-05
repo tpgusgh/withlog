@@ -24,6 +24,18 @@ def ensure_runtime_columns():
         }
         if 'is_public' not in existing_user_columns:
             connection.execute(text("ALTER TABLE users ADD COLUMN is_public BOOLEAN NOT NULL DEFAULT 1"))
+        user_required_columns = {
+            'intro': "ALTER TABLE users ADD COLUMN intro VARCHAR NOT NULL DEFAULT ''",
+            'push_enabled': "ALTER TABLE users ADD COLUMN push_enabled BOOLEAN NOT NULL DEFAULT 1",
+            'music_preview': "ALTER TABLE users ADD COLUMN music_preview BOOLEAN NOT NULL DEFAULT 1",
+            'theme_mode': "ALTER TABLE users ADD COLUMN theme_mode VARCHAR NOT NULL DEFAULT 'light'",
+            'timezone_label': "ALTER TABLE users ADD COLUMN timezone_label VARCHAR NOT NULL DEFAULT 'Asia/Seoul'",
+            'quiet_hours_enabled': "ALTER TABLE users ADD COLUMN quiet_hours_enabled BOOLEAN NOT NULL DEFAULT 0",
+            'quiet_hours': "ALTER TABLE users ADD COLUMN quiet_hours VARCHAR NOT NULL DEFAULT '22:00 - 08:00'",
+        }
+        for column, statement in user_required_columns.items():
+            if column not in existing_user_columns:
+                connection.execute(text(statement))
         existing_group_columns = {
             row[1]
             for row in connection.execute(text("PRAGMA table_info('groups')")).fetchall()

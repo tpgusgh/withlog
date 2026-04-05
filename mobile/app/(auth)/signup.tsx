@@ -1,27 +1,28 @@
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AxiosError } from 'axios';
 
 import { useAuthStore } from '@/store/auth';
 import { useAppTheme } from '@/store/theme';
 import { api } from '@/services/api';
+import type { ProfilePayload } from '@/services/profile-settings';
+import type { AuthUser } from '@/store/auth';
 
-const normalizeProfile = (payload: {
-  id: number;
-  email: string;
-  nickname: string;
-  profile_image?: string | null;
-  is_public?: boolean;
-  follower_count?: number;
-  following_count?: number;
-}) => ({
+const normalizeProfile = (payload: ProfilePayload): AuthUser => ({
   id: payload.id,
   email: payload.email,
   nickname: payload.nickname,
   profileImage: payload.profile_image ?? null,
   isPublic: payload.is_public ?? true,
+  intro: payload.intro ?? '',
+  pushEnabled: payload.push_enabled ?? true,
+  musicPreview: payload.music_preview ?? true,
+  themeMode: payload.theme_mode === 'dark' ? 'dark' : 'light',
+  timezoneLabel: payload.timezone_label ?? 'Asia/Seoul',
+  quietHoursEnabled: payload.quiet_hours_enabled ?? false,
+  quietHours: payload.quiet_hours ?? '22:00 - 08:00',
   followerCount: payload.follower_count ?? 0,
   followingCount: payload.following_count ?? 0,
 });
@@ -38,8 +39,19 @@ export default function SignupScreen() {
   const [requestingCode, setRequestingCode] = useState(false);
   const [verifyingCode, setVerifyingCode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const setSession = useAuthStore((state) => state.setSession);
+
+  useEffect(() => {
+    if (remainingSeconds <= 0) {
+      return;
+    }
+    const timer = setInterval(() => {
+      setRemainingSeconds((current) => Math.max(current - 1, 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [remainingSeconds]);
 
   const handleRequestCode = async () => {
     try {
@@ -48,6 +60,7 @@ export default function SignupScreen() {
       setVerificationToken(null);
       const response = await api.post('/auth/email/request', { email });
       setDevCode((response.data.dev_code as string | undefined) ?? null);
+      setRemainingSeconds((response.data.expires_in_seconds as number | undefined) ?? 600);
     } catch (err) {
       const message =
         err instanceof AxiosError ? (err.response?.data?.detail as string | undefined) ?? err.message : '인증번호 발송에 실패했습니다.';
@@ -56,6 +69,8 @@ export default function SignupScreen() {
       setRequestingCode(false);
     }
   };
+
+  const timerLabel = `${String(Math.floor(remainingSeconds / 60)).padStart(2, '0')}:${String(remainingSeconds % 60).padStart(2, '0')}`;
 
   const handleVerifyCode = async () => {
     try {
@@ -121,6 +136,7 @@ export default function SignupScreen() {
             <TouchableOpacity style={[styles.secondaryButton, { backgroundColor: isDark ? '#1F1B18' : '#F1E7DC', borderColor: colors.border }, requestingCode && styles.buttonDisabled]} disabled={requestingCode || !email.trim()} onPress={handleRequestCode}>
               <Text style={[styles.secondaryButtonText, { color: colors.text }]}>{requestingCode ? '보내는 중...' : '인증번호 받기'}</Text>
             </TouchableOpacity>
+            {remainingSeconds > 0 ? <Text style={styles.timer}>인증번호 만료까지 {timerLabel}</Text> : null}
 
             <Text style={[styles.label, { color: colors.text }]}>인증번호</Text>
             <TextInput style={[styles.input, { backgroundColor: isDark ? '#1F1B18' : '#F8F5F0', borderColor: colors.border, color: colors.text }]} value={verificationCode} onChangeText={setVerificationCode} keyboardType="number-pad" placeholder="6자리 코드" placeholderTextColor={colors.subtext} />
@@ -162,5 +178,6 @@ const styles = StyleSheet.create({
   buttonDisabled: { opacity: 0.6 },
   buttonText: { fontWeight: '800' },
   devCode: { color: '#B45309', marginBottom: 10, fontWeight: '800' },
+  timer: { color: '#0F766E', marginBottom: 10, fontWeight: '800' },
   error: { color: '#C2410C', marginBottom: 8, fontWeight: '700' },
 });

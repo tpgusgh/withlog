@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Image, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,24 +10,23 @@ import DateTimePicker, { type DateTimePickerEvent } from '@react-native-communit
 
 import { api, buildProfileImageUrl } from '@/services/api';
 import { syncLocalNotifications } from '@/services/notifications';
-import { PROFILE_SETTINGS_KEY, TIMEZONE_OPTIONS, defaultProfileSettings, type LocalProfileSettings } from '@/services/profile-settings';
+import { TIMEZONE_OPTIONS, defaultProfileSettings, mapProfileToSettings, type LocalProfileSettings, type ProfilePayload } from '@/services/profile-settings';
 import { useAuthStore, type AuthUser } from '@/store/auth';
 import { useAppTheme, useThemeStore } from '@/store/theme';
 
-const normalizeProfile = (payload: {
-  id: number;
-  email: string;
-  nickname: string;
-  profile_image?: string | null;
-  is_public?: boolean;
-  follower_count?: number;
-  following_count?: number;
-}): AuthUser => ({
+const normalizeProfile = (payload: ProfilePayload): AuthUser => ({
   id: payload.id,
   email: payload.email,
   nickname: payload.nickname,
   profileImage: payload.profile_image ?? null,
   isPublic: payload.is_public ?? true,
+  intro: payload.intro ?? '',
+  pushEnabled: payload.push_enabled ?? true,
+  musicPreview: payload.music_preview ?? true,
+  themeMode: payload.theme_mode === 'dark' ? 'dark' : 'light',
+  timezoneLabel: payload.timezone_label ?? 'Asia/Seoul',
+  quietHoursEnabled: payload.quiet_hours_enabled ?? false,
+  quietHours: payload.quiet_hours ?? '22:00 - 08:00',
   followerCount: payload.follower_count ?? 0,
   followingCount: payload.following_count ?? 0,
 });
@@ -49,12 +47,8 @@ export default function ProfileEditScreen() {
   const settingsQuery = useQuery({
     queryKey: ['profile-settings'],
     queryFn: async () => {
-      const baseSettings = { ...defaultProfileSettings, isPublic: user?.isPublic ?? defaultProfileSettings.isPublic };
-      const raw = await AsyncStorage.getItem(PROFILE_SETTINGS_KEY);
-      if (!raw) {
-        return baseSettings;
-      }
-      return { ...baseSettings, ...(JSON.parse(raw) as Partial<LocalProfileSettings>) };
+      const response = await api.get('/auth/me');
+      return mapProfileToSettings(response.data as ProfilePayload);
     },
   });
 
@@ -66,7 +60,6 @@ export default function ProfileEditScreen() {
 
   const saveSettings = async (next: LocalProfileSettings) => {
     setSettings(next);
-    await AsyncStorage.setItem(PROFILE_SETTINGS_KEY, JSON.stringify(next));
     await setThemeMode(next.themeMode);
     await syncLocalNotifications(next);
   };
@@ -76,6 +69,13 @@ export default function ProfileEditScreen() {
       const formData = new FormData();
       formData.append('nickname', nickname.trim() || user?.nickname || 'User');
       formData.append('is_public', settings.isPublic ? 'true' : 'false');
+      formData.append('intro', settings.intro);
+      formData.append('push_enabled', settings.pushEnabled ? 'true' : 'false');
+      formData.append('music_preview', settings.musicPreview ? 'true' : 'false');
+      formData.append('theme_mode', settings.themeMode);
+      formData.append('timezone_label', settings.timezoneLabel);
+      formData.append('quiet_hours_enabled', settings.quietHoursEnabled ? 'true' : 'false');
+      formData.append('quiet_hours', settings.quietHours);
       if (selectedImage) {
         formData.append('profile_image', {
           uri: selectedImage.uri,
@@ -90,6 +90,18 @@ export default function ProfileEditScreen() {
     },
     onSuccess: async (nextUser) => {
       await updateUser(nextUser);
+      await setThemeMode(nextUser.themeMode ?? 'light');
+      await syncLocalNotifications(mapProfileToSettings({
+        is_public: nextUser.isPublic,
+        intro: nextUser.intro,
+        push_enabled: nextUser.pushEnabled,
+        music_preview: nextUser.musicPreview,
+        theme_mode: nextUser.themeMode,
+        timezone_label: nextUser.timezoneLabel,
+        quiet_hours_enabled: nextUser.quietHoursEnabled,
+        quiet_hours: nextUser.quietHours,
+      }));
+      await queryClient.invalidateQueries({ queryKey: ['profile-settings'] });
       await queryClient.invalidateQueries({ queryKey: ['recommended-users'] });
       setSelectedImage(null);
       setError(null);

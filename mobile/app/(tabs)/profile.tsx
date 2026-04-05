@@ -5,10 +5,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useState } from 'react';
 
 import { api, buildProfileImageUrl } from '@/services/api';
-import { defaultProfileSettings, PROFILE_SETTINGS_KEY, type LocalProfileSettings } from '@/services/profile-settings';
+import { defaultProfileSettings, mapProfileToSettings, type LocalProfileSettings, type ProfilePayload } from '@/services/profile-settings';
 import { useAuthStore } from '@/store/auth';
 import { useAppTheme } from '@/store/theme';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -22,12 +21,8 @@ export default function ProfileScreen() {
   const settingsQuery = useQuery({
     queryKey: ['profile-settings'],
     queryFn: async () => {
-      const baseSettings = { ...defaultProfileSettings, isPublic: user?.isPublic ?? defaultProfileSettings.isPublic };
-      const raw = await AsyncStorage.getItem(PROFILE_SETTINGS_KEY);
-      if (!raw) {
-        return baseSettings;
-      }
-      return { ...baseSettings, ...(JSON.parse(raw) as Partial<LocalProfileSettings>) };
+      const response = await api.get('/auth/me');
+      return mapProfileToSettings(response.data as ProfilePayload);
     },
   });
   const recommendedUsersQuery = useQuery({
@@ -67,13 +62,6 @@ export default function ProfileScreen() {
     },
   });
 
-  if (!user) {
-    return <Redirect href="/(auth)/login" />;
-  }
-
-  const settings = settingsQuery.data ?? defaultProfileSettings;
-  const avatarUri = buildProfileImageUrl(user.profileImage, user.nickname);
-
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await Promise.all([
@@ -83,6 +71,13 @@ export default function ProfileScreen() {
     ]);
     setRefreshing(false);
   }, [queryClient]);
+
+  if (!user) {
+    return <Redirect href="/(auth)/login" />;
+  }
+
+  const settings = settingsQuery.data ?? defaultProfileSettings;
+  const avatarUri = buildProfileImageUrl(user.profileImage, user.nickname);
 
   return (
     <ScrollView

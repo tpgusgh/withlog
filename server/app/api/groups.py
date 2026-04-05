@@ -150,6 +150,25 @@ def leave_group(group_id: int, db: Session = Depends(get_db), current_user: User
     return {'message': 'left', 'group_id': group_id}
 
 
+@router.delete('/{group_id}/members/{user_id}')
+def remove_group_member(group_id: int, user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail='Group not found')
+    if group.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail='Only owner can remove members')
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail='Owner cannot remove themselves')
+
+    membership = db.query(GroupMember).filter(GroupMember.group_id == group_id, GroupMember.user_id == user_id).first()
+    if not membership:
+        raise HTTPException(status_code=404, detail='Membership not found')
+
+    db.delete(membership)
+    db.commit()
+    return {'message': 'removed', 'group_id': group_id, 'user_id': user_id}
+
+
 @router.delete('/{group_id}')
 def delete_group(group_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     group = db.query(Group).filter(Group.id == group_id).first()

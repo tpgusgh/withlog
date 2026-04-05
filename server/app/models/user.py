@@ -9,6 +9,13 @@ class User(Base):
     nickname = Column(String, nullable=False)
     profile_image = Column(String, nullable=True)
     is_public = Column(Boolean, nullable=False, default=True)
+    intro = Column(String, nullable=False, default='')
+    push_enabled = Column(Boolean, nullable=False, default=True)
+    music_preview = Column(Boolean, nullable=False, default=True)
+    theme_mode = Column(String, nullable=False, default='light')
+    timezone_label = Column(String, nullable=False, default='Asia/Seoul')
+    quiet_hours_enabled = Column(Boolean, nullable=False, default=False)
+    quiet_hours = Column(String, nullable=False, default='22:00 - 08:00')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -19,6 +26,15 @@ class Follow(Base):
     following_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     __table_args__ = (UniqueConstraint('follower_id', 'following_id', name='uq_follow_pair'),)
+
+
+class Block(Base):
+    __tablename__ = 'blocks'
+    id = Column(Integer, primary_key=True)
+    blocker_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    blocked_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (UniqueConstraint('blocker_id', 'blocked_id', name='uq_block_pair'),)
 
 
 class EmailVerification(Base):

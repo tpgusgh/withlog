@@ -10,6 +10,13 @@ export type AuthUser = {
   nickname: string;
   profileImage?: string | null;
   isPublic?: boolean;
+  intro?: string;
+  pushEnabled?: boolean;
+  musicPreview?: boolean;
+  themeMode?: 'light' | 'dark';
+  timezoneLabel?: string;
+  quietHoursEnabled?: boolean;
+  quietHours?: string;
   followerCount?: number;
   followingCount?: number;
 };

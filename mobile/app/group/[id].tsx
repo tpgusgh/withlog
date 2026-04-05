@@ -13,7 +13,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { BlurView } from 'expo-blur';
@@ -42,11 +42,12 @@ const mapGroup = (group: {
   memberCount: group.member_count,
   maxMembers: group.max_members,
   ownerId: group.owner_id,
-      members: Array.isArray(group.members)
+  members: Array.isArray(group.members)
     ? group.members.map((member) => ({
         id: member.id,
         nickname: member.nickname,
         profileImage: buildProfileImageUrl(member.profile_image, member.nickname),
+        isOwner: member.id === group.owner_id,
       }))
     : [],
 });
@@ -228,6 +229,15 @@ export default function GroupDetailScreen() {
       );
     },
   });
+  const blockListQuery = useQuery({
+    queryKey: ['blocked-users'],
+    queryFn: async () => {
+      const response = await api.get('/auth/blocks');
+      return response.data as {
+        blocked: { id: number; nickname: string; profile_image?: string | null }[];
+      };
+    },
+  });
 
   const leaveGroupMutation = useMutation({
     mutationFn: async () => api.delete(`/groups/${groupId}/leave`),
@@ -255,6 +265,62 @@ export default function GroupDetailScreen() {
     },
   });
 
+  const removeMemberMutation = useMutation({
+    mutationFn: async (memberId: number) => api.delete(`/groups/${groupId}/members/${memberId}`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['group', groupId] });
+      await queryClient.invalidateQueries({ queryKey: ['group-feed-window', groupId] });
+      await queryClient.invalidateQueries({ queryKey: ['groups'] });
+    },
+    onError: (err) => {
+      const message =
+        err instanceof AxiosError ? (err.response?.data?.detail as string | undefined) ?? err.message : '멤버 추방에 실패했습니다.';
+      Alert.alert('오류', message);
+    },
+  });
+  const blockMemberMutation = useMutation({
+    mutationFn: async (memberId: number) => api.post(`/auth/block/${memberId}`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['blocked-users'] });
+      await queryClient.invalidateQueries({ queryKey: ['recommended-users'] });
+      await queryClient.invalidateQueries({ queryKey: ['follow-lists'] });
+      await queryClient.invalidateQueries({ queryKey: ['group', groupId] });
+    },
+    onError: (err) => {
+      const message =
+        err instanceof AxiosError ? (err.response?.data?.detail as string | undefined) ?? err.message : '멤버 차단에 실패했습니다.';
+      Alert.alert('오류', message);
+    },
+  });
+
+  const confirmRemoveMember = (memberId: number, nickname: string) => {
+    Alert.alert('멤버 추방', `${nickname}님을 그룹에서 내보낼까요?`, [
+      { text: '취소', style: 'cancel' },
+      { text: '추방', style: 'destructive', onPress: () => removeMemberMutation.mutate(memberId) },
+    ]);
+  };
+  const confirmBlockMember = (memberId: number, nickname: string) => {
+    Alert.alert('멤버 차단', `${nickname}님을 차단할까요? 차단하면 그룹에서도 숨겨집니다.`, [
+      { text: '취소', style: 'cancel' },
+      { text: '차단', style: 'destructive', onPress: () => blockMemberMutation.mutate(memberId) },
+    ]);
+  };
+  const confirmLeaveOrDeleteGroup = () => {
+    const isOwner = group?.ownerId === user?.id;
+    Alert.alert(
+      isOwner ? '그룹 삭제' : '그룹 나가기',
+      isOwner ? '이 그룹을 정말 삭제할까요? 그룹 기록도 함께 사라집니다.' : '이 그룹에서 나갈까요?',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: isOwner ? '삭제' : '나가기',
+          style: 'destructive',
+          onPress: () => (isOwner ? deleteGroupMutation.mutate() : leaveGroupMutation.mutate()),
+        },
+      ],
+    );
+  };
+
   const deadlineText = (() => {
     const closeAt = slotQuery.data?.close_at;
     if (!closeAt) {
@@ -270,15 +336,26 @@ export default function GroupDetailScreen() {
   })();
 
   const timeline = useMemo(() => buildRecentHourTimeline(anchorDate, anchorHour, 24), [anchorDate, anchorHour]);
+  const blockedIds = useMemo(
+    () => new Set((blockListQuery.data?.blocked ?? []).map((person) => person.id)),
+    [blockListQuery.data],
+  );
+  const visibleMembers = useMemo(
+    () => (groupQuery.data?.members ?? []).filter((member) => !blockedIds.has(member.id)),
+    [blockedIds, groupQuery.data],
+  );
   const postsBySlot = useMemo(() => {
     const map = new Map<string, FeedPost[]>();
     for (const day of feedQuery.data ?? []) {
       for (const slot of day.slots ?? []) {
-        map.set(`${day.dateKey}-${slot.hour}`, Array.isArray(slot.posts) ? slot.posts : []);
+        map.set(
+          `${day.dateKey}-${slot.hour}`,
+          Array.isArray(slot.posts) ? slot.posts.filter((post) => !blockedIds.has(post.user.id)) : [],
+        );
       }
     }
     return map;
-  }, [feedQuery.data]);
+  }, [blockedIds, feedQuery.data]);
   const pages = useMemo(
     () =>
       timeline.map((slot) => ({
@@ -293,6 +370,9 @@ export default function GroupDetailScreen() {
       if (message.messageType === 'heart') {
         continue;
       }
+      if (blockedIds.has(message.user.id)) {
+        continue;
+      }
       const postId = message.quote?.postId;
       if (!postId) {
         continue;
@@ -302,7 +382,7 @@ export default function GroupDetailScreen() {
       grouped.set(postId, current);
     }
     return grouped;
-  }, [chatQuery.data]);
+  }, [blockedIds, chatQuery.data]);
   const currentIndex = Math.max(pages.length - 1, 0);
   const activePage = pages[activeIndex] ?? pages[currentIndex];
   const group = groupQuery.data;
@@ -390,7 +470,7 @@ export default function GroupDetailScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.leaveBtn, { backgroundColor: group?.ownerId === user?.id ? '#7F1D1D' : colors.card, borderColor: colors.border }]}
-              onPress={() => (group?.ownerId === user?.id ? deleteGroupMutation.mutate() : leaveGroupMutation.mutate())}
+              onPress={confirmLeaveOrDeleteGroup}
               disabled={deleteGroupMutation.isPending || leaveGroupMutation.isPending}
             >
               <Text style={[styles.leaveText, { color: group?.ownerId === user?.id ? '#FEE2E2' : colors.text }]}>
@@ -438,9 +518,11 @@ export default function GroupDetailScreen() {
         {pages.map((page) => (
           <View key={page.key} style={[styles.page, { width: pageWidth }]}>
             <View style={styles.pageStack}>
-              {(group?.members ?? []).map((member) => {
+              {visibleMembers.map((member) => {
                 const post = page.posts.find((item) => item.user.id === member.id);
                 const isMine = member.id === user?.id;
+                const canKick = group?.ownerId === user?.id && !isMine;
+                const canBlock = !isMine;
                 const isCurrentSlot = page.dateKey === anchorDate && page.hour === anchorHour;
                 if (!post) {
                   return (
@@ -464,12 +546,29 @@ export default function GroupDetailScreen() {
                       >
                         <View style={styles.glassSheen} />
                         <View style={styles.glassRim} />
+                        {canKick || canBlock ? (
+                          <View style={styles.cardActionRow}>
+                            {canBlock ? (
+                              <TouchableOpacity style={styles.blockButton} onPress={() => confirmBlockMember(member.id, member.nickname)}>
+                                <Ionicons name="ban-outline" size={14} color="#FFFFFF" />
+                              </TouchableOpacity>
+                            ) : null}
+                            {canKick ? (
+                              <TouchableOpacity style={styles.kickButton} onPress={() => confirmRemoveMember(member.id, member.nickname)}>
+                                <Ionicons name="close" size={14} color="#FFFFFF" />
+                              </TouchableOpacity>
+                            ) : null}
+                          </View>
+                        ) : null}
                         {!isMine || !isCurrentSlot ? (
                           <View style={styles.placeholderHead}>
-                            <View style={styles.placeholderUser}>
+                            <TouchableOpacity style={styles.placeholderUser} activeOpacity={0.85} onPress={() => router.push(`/profile/${member.id}`)}>
                               <Image source={{ uri: member.profileImage || buildProfileImageUrl(null, member.nickname) }} style={styles.placeholderAvatar} />
-                              <Text style={[styles.placeholderName, { color: colors.text }]}>{member.nickname}</Text>
-                            </View>
+                              <View style={styles.placeholderNameRow}>
+                                <Text style={[styles.placeholderName, { color: colors.text }]}>{member.nickname}</Text>
+                                {member.isOwner ? <MaterialCommunityIcons name="crown" size={14} color="#F59E0B" /> : null}
+                              </View>
+                            </TouchableOpacity>
                           </View>
                         ) : null}
                         {isMine && isCurrentSlot ? (
@@ -507,11 +606,26 @@ export default function GroupDetailScreen() {
                     id: post.user.id,
                     nickname: post.user.nickname,
                     profileImage: buildProfileImageUrl(post.user.profile_image, post.user.nickname),
+                    isOwner: post.user.id === group?.ownerId,
                   },
                 };
 
                 return (
                   <View key={post.id} style={styles.postWrap}>
+                    {canKick || canBlock ? (
+                      <View style={styles.cardActionRowFloating}>
+                        {canBlock ? (
+                          <TouchableOpacity style={styles.blockButton} onPress={() => confirmBlockMember(member.id, member.nickname)}>
+                            <Ionicons name="ban-outline" size={14} color="#FFFFFF" />
+                          </TouchableOpacity>
+                        ) : null}
+                        {canKick ? (
+                          <TouchableOpacity style={styles.kickButton} onPress={() => confirmRemoveMember(member.id, member.nickname)}>
+                            <Ionicons name="close" size={14} color="#FFFFFF" />
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+                    ) : null}
                     <FeedCard
                       post={mapped}
                       onPressProfile={(selectedPost) => router.push(`/profile/${selectedPost.user.id}`)}
@@ -551,7 +665,7 @@ export default function GroupDetailScreen() {
                   </View>
                 );
               })}
-              {Array.from({ length: Math.max((group?.maxMembers ?? 0) - (group?.members.length ?? 0), 0) }, (_, index) => (
+              {Array.from({ length: Math.max((group?.maxMembers ?? 0) - visibleMembers.length, 0) }, (_, index) => (
                 <TouchableOpacity
                   key={`invite-${page.key}-${index}`}
                   style={styles.placeholderShell}
@@ -632,6 +746,38 @@ const styles = StyleSheet.create({
     borderRadius: 36,
     overflow: 'hidden',
   },
+  cardActionRow: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    flexDirection: 'row',
+    gap: 8,
+    zIndex: 4,
+  },
+  cardActionRowFloating: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    flexDirection: 'row',
+    gap: 8,
+    zIndex: 5,
+  },
+  blockButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(127,29,29,0.86)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  kickButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(15,23,42,0.8)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   placeholderCard: {
     borderRadius: 36,
     borderWidth: 1,
@@ -648,6 +794,7 @@ const styles = StyleSheet.create({
   placeholderBody: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
   placeholderUser: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   placeholderAvatar: { width: 40, height: 40, borderRadius: 999, backgroundColor: '#CBD5E1' },
+  placeholderNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   placeholderName: { fontSize: 16, fontWeight: '800' },
   placeholderState: { fontWeight: '700' },
   placeholderCopy: { lineHeight: 22, fontWeight: '700', textAlign: 'center' },

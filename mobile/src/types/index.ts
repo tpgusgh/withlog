@@ -1,4 +1,4 @@
-export type Member = { id: number; nickname: string; profileImage?: string | null };
+export type Member = { id: number; nickname: string; profileImage?: string | null; isOwner?: boolean };
 
 export type Group = {
   id: number;

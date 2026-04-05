@@ -1,4 +1,4 @@
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -32,6 +32,7 @@ export default function FriendProfileScreen() {
         following_count: number;
         is_following: boolean;
         follows_you: boolean;
+        is_blocked?: boolean;
         public_groups?: {
           id: number;
           name: string;
@@ -78,6 +79,44 @@ export default function FriendProfileScreen() {
     },
   });
 
+  const blockMutation = useMutation({
+    mutationFn: async (blocked: boolean) => {
+      if (blocked) {
+        await api.delete(`/auth/block/${userId}`);
+        return false;
+      }
+      await api.post(`/auth/block/${userId}`);
+      return true;
+    },
+    onSuccess: async (nextBlocked) => {
+      queryClient.setQueryData(['user-profile', userId], (oldData: unknown) => {
+        if (!oldData || typeof oldData !== 'object') {
+          return oldData;
+        }
+        const typed = oldData as {
+          is_blocked?: boolean;
+          is_following?: boolean;
+          follows_you?: boolean;
+          follower_count?: number;
+          following_count?: number;
+        };
+        return {
+          ...typed,
+          is_blocked: nextBlocked,
+          is_following: nextBlocked ? false : typed.is_following,
+          follows_you: nextBlocked ? false : typed.follows_you,
+        };
+      });
+      await queryClient.invalidateQueries({ queryKey: ['recommended-users'] });
+      await queryClient.invalidateQueries({ queryKey: ['follow-lists'] });
+    },
+    onError: (err) => {
+      const message =
+        err instanceof AxiosError ? (err.response?.data?.detail as string | undefined) ?? err.message : '차단 설정에 실패했습니다.';
+      console.warn(message);
+    },
+  });
+
   const joinPublicMutation = useMutation({
     mutationFn: async (groupId: number) => api.post(`/groups/${groupId}/join-public`),
     onSuccess: async (_, groupId) => {
@@ -110,6 +149,20 @@ export default function FriendProfileScreen() {
   const profile = profileQuery.data;
   const avatarUri = buildProfileImageUrl(profile?.profile_image, profile?.nickname);
 
+  const confirmToggleBlock = () => {
+    if (!profile) {
+      return;
+    }
+    const nextAction = profile.is_blocked ? '차단 해제' : '차단';
+    const description = profile.is_blocked
+      ? `${profile.nickname}님의 차단을 해제할까요?`
+      : `${profile.nickname}님을 차단할까요?`;
+    Alert.alert(nextAction, description, [
+      { text: '취소', style: 'cancel' },
+      { text: nextAction, style: 'destructive', onPress: () => blockMutation.mutate(Boolean(profile.is_blocked)) },
+    ]);
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
@@ -132,15 +185,24 @@ export default function FriendProfileScreen() {
           <Text style={[styles.name, { color: colors.text }]}>{profile?.nickname ?? '불러오는 중...'}</Text>
           <Text style={[styles.sub, { color: colors.subtext }]}>{profile?.follows_you ? '나를 팔로우하고 있어요' : '공개 프로필'}</Text>
           {profile && currentUser?.id !== profile.id ? (
-            <TouchableOpacity
-              style={[styles.followButton, { backgroundColor: profile.is_following ? (isDark ? '#2A2623' : '#ECE4DB') : colors.text }]}
-              onPress={() => followMutation.mutate(profile.is_following)}
-              disabled={followMutation.isPending}
-            >
-              <Text style={[styles.followButtonText, { color: profile.is_following ? colors.text : colors.background }]}>
-                {profile.is_following ? '팔로잉' : '팔로우'}
-              </Text>
-            </TouchableOpacity>
+            <View style={styles.heroActions}>
+              <TouchableOpacity
+                style={[styles.followButton, { backgroundColor: profile.is_following ? (isDark ? '#2A2623' : '#ECE4DB') : colors.text }]}
+                onPress={() => followMutation.mutate(profile.is_following)}
+                disabled={followMutation.isPending || Boolean(profile.is_blocked)}
+              >
+                <Text style={[styles.followButtonText, { color: profile.is_following ? colors.text : colors.background }]}>
+                  {profile.is_blocked ? '차단 중' : profile.is_following ? '팔로잉' : '팔로우'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.blockButton, { backgroundColor: profile.is_blocked ? '#B91C1C' : isDark ? '#2A2623' : '#ECE4DB' }]}
+                onPress={confirmToggleBlock}
+                disabled={blockMutation.isPending}
+              >
+                <Text style={styles.blockButtonText}>{profile.is_blocked ? '차단 해제' : '차단'}</Text>
+              </TouchableOpacity>
+            </View>
           ) : null}
         </View>
 
@@ -193,8 +255,11 @@ const styles = StyleSheet.create({
   avatar: { width: 104, height: 104, borderRadius: 52 },
   name: { fontSize: 24, fontWeight: '900', marginTop: 14 },
   sub: { marginTop: 6, fontWeight: '600' },
+  heroActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
   followButton: { marginTop: 16, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 12 },
   followButtonText: { fontWeight: '800' },
+  blockButton: { marginTop: 16, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 12 },
+  blockButtonText: { color: '#FFFFFF', fontWeight: '800' },
   statsCard: { borderWidth: 1, borderRadius: 26, padding: 18, flexDirection: 'row', alignItems: 'center' },
   statItem: { flex: 1, alignItems: 'center' },
   statCount: { fontSize: 22, fontWeight: '900' },
