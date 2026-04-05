@@ -4,8 +4,9 @@ import type { SlotSummary } from '@/types';
 import { useAppTheme } from '@/store/theme';
 
 const formatDeadline = (hour: string) => {
-  const displayHour = hour.slice(0, 2).padStart(2, '0');
-  return `${displayHour}:59까지 업로드 가능`;
+  const match = hour.match(/\d+/);
+  const displayHour = match ? Number(match[0]) : hour;
+  return `${displayHour}시 59분까지 업로드 가능`;
 };
 
 export function CountdownCard({ slot }: { slot: SlotSummary }) {

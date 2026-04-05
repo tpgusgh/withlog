@@ -43,7 +43,8 @@ async def upload_post(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    slot = db.query(Slot).filter(Slot.id == slot_id).first()
+    requested_slot_id = slot_id
+    slot = db.query(Slot).filter(Slot.id == requested_slot_id).first()
     if not slot:
         raise HTTPException(status_code=404, detail='Slot not found')
     now = local_now()
@@ -83,6 +84,8 @@ async def upload_post(
         db.commit()
     if now > close_at:
         raise HTTPException(status_code=400, detail='Upload window closed')
+
+    slot_id = slot.id
 
     out = UPLOAD_DIR / f"{slot_id}_{current_user.id}_{file.filename}"
     out.write_bytes(await file.read())

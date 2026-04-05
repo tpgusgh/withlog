@@ -322,7 +322,7 @@ export default function GroupDetailScreen() {
     if (slotHour === undefined) {
       return '현재 슬롯 확인 중';
     }
-    return `${String(slotHour).padStart(2, '0')}:59까지 업로드 가능`;
+    return `${slotHour}시 59분까지 업로드 가능`;
   })();
 
   const timeline = useMemo(() => buildRecentHourTimeline(anchorDate, anchorHour, 24), [anchorDate, anchorHour]);
@@ -492,7 +492,7 @@ export default function GroupDetailScreen() {
         <View style={styles.liveTop}>
           <View>
             <Text style={styles.liveLabel}>NOW OPEN</Text>
-            <Text style={[styles.liveHour, { color: colors.text }]}>{slotQuery.data ? `${String(slotQuery.data.slot_hour).padStart(2, '0')}:00` : '--:--'}</Text>
+            <Text style={[styles.liveHour, { color: colors.text }]}>{slotQuery.data ? `${slotQuery.data.slot_hour}시` : '--'}</Text>
           </View>
           <View style={[styles.liveBadge, { backgroundColor: colors.text }]}>
             <Text style={[styles.liveBadgeText, { color: colors.background }]}>WITHLOG ROOM</Text>

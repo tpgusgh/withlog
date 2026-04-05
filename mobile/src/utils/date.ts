@@ -34,7 +34,7 @@ export const buildRecentHourTimeline = (dateKey: string, hour: number, count = 2
       dateKey: formatLocalDate(point),
       displayDate: formatDisplayDate(point),
       hour: point.getHours(),
-      hourLabel: `${String(point.getHours()).padStart(2, '0')}:00`,
+      hourLabel: `${point.getHours()}시`,
     };
   });
 };
