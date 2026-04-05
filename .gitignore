@@ -1,0 +1,23 @@
+.DS_Store
+
+# Environment files
+server/.env
+mobile/.env
+
+# Python
+server/.venv/
+server/__pycache__/
+server/**/*.pyc
+server/app.db
+
+# Uploads and generated media
+server/uploads/
+uploads/
+
+# Expo / React Native
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+
+# Misc
+*.log
