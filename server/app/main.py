@@ -1,6 +1,6 @@
 import asyncio
 from contextlib import suppress
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -73,7 +73,7 @@ def delete_local_upload(path_value: str | None):
 
 
 def cleanup_expired_media():
-    cutoff = datetime.now(UTC) - timedelta(days=RETENTION_DAYS)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS)
     with SessionLocal() as session:
         expired_posts = session.query(Post).filter(Post.created_at < cutoff).all()
         expired_post_ids = [post.id for post in expired_posts]

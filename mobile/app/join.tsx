@@ -4,9 +4,11 @@ import { View, Text, StyleSheet } from 'react-native';
 import { AxiosError } from 'axios';
 
 import { api } from '@/services/api';
+import { useAppTheme } from '@/store/theme';
 
 export default function JoinByLinkScreen() {
   const { code } = useLocalSearchParams<{ code?: string }>();
+  const { colors } = useAppTheme();
   const [joinedGroupId, setJoinedGroupId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,15 +35,15 @@ export default function JoinByLinkScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{error ? '참여 실패' : '그룹에 참여하는 중...'}</Text>
-      <Text style={styles.sub}>{error ?? `초대 코드 ${code ?? ''}를 확인하고 있어요.`}</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <Text style={[styles.title, { color: colors.text }]}>{error ? '참여 실패' : '그룹에 참여하는 중...'}</Text>
+      <Text style={[styles.sub, { color: colors.subtext }]}>{error ?? `초대 코드 ${code ?? ''}를 확인하고 있어요.`}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  title: { color: '#0F172A', fontSize: 28, fontWeight: '900' },
-  sub: { color: '#64748B', marginTop: 10, textAlign: 'center', lineHeight: 22 },
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  title: { fontSize: 28, fontWeight: '900' },
+  sub: { marginTop: 10, textAlign: 'center', lineHeight: 22 },
 });

@@ -1,5 +1,5 @@
 from pathlib import Path
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta, timezone
 import os
 import random
 import smtplib
@@ -32,7 +32,7 @@ SMTP_USE_STARTTLS = os.getenv('SMTP_USE_STARTTLS', 'true').lower() == 'true'
 
 
 def utc_now_naive() -> datetime:
-    return datetime.now(UTC).replace(tzinfo=None)
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def send_verification_email(email: str, code: str):
@@ -120,7 +120,7 @@ def verify_email_code(payload: EmailVerifyIn, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail='인증 요청을 먼저 해주세요.')
     expires_at = verification.expires_at
     if expires_at.tzinfo is not None:
-        expires_at = expires_at.astimezone(UTC).replace(tzinfo=None)
+        expires_at = expires_at.astimezone(timezone.utc).replace(tzinfo=None)
     if expires_at < utc_now_naive():
         raise HTTPException(status_code=400, detail='인증번호가 만료됐습니다.')
     if verification.code != payload.code:
@@ -197,7 +197,7 @@ def parse_since(value: str | None) -> datetime:
         normalized = value.replace('Z', '+00:00')
         parsed = datetime.fromisoformat(normalized)
         if parsed.tzinfo is not None:
-            parsed = parsed.astimezone(UTC).replace(tzinfo=None)
+            parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
         return parsed
     except ValueError:
         return utc_now_naive() - timedelta(minutes=1)

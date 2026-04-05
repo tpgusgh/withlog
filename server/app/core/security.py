@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from jose import jwt
 from passlib.context import CryptContext
@@ -22,12 +22,12 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 
 def create_access_token(subject: str) -> str:
-    expire = datetime.now(UTC) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     return jwt.encode({'sub': subject, 'exp': expire}, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def create_email_verification_token(email: str) -> str:
-    expire = datetime.now(UTC) + timedelta(minutes=30)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=30)
     return jwt.encode({'sub': email, 'type': 'email_verification', 'exp': expire}, SECRET_KEY, algorithm=ALGORITHM)
 
 
