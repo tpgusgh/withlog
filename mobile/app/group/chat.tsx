@@ -20,6 +20,7 @@ import { AxiosError } from 'axios';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { api, buildAssetUrl } from '@/services/api';
+import { useAuthStore } from '@/store/auth';
 import { useAppTheme } from '@/store/theme';
 import type { ChatMessage } from '@/types';
 import { formatCreatedAtLabel } from '@/utils/date';
@@ -44,6 +45,7 @@ export default function GroupChatScreen() {
   const queryClient = useQueryClient();
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
+  const currentUser = useAuthStore((state) => state.user);
   const [text, setText] = useState('');
   const [selectedImage, setSelectedImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [ambientKey, setAmbientKey] = useState<'none' | 'rain' | 'forest'>('none');
@@ -181,8 +183,8 @@ export default function GroupChatScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
-      behavior="padding"
-      keyboardVerticalOffset={insets.top + (Platform.OS === 'ios' ? 10 : 0)}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 6 : 0}
     >
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity style={styles.headerIcon} onPress={() => router.back()}>
@@ -205,30 +207,65 @@ export default function GroupChatScreen() {
       <ScrollView
         ref={scrollRef}
         style={styles.messages}
-        contentContainerStyle={[styles.messagesContent, { paddingBottom: 120 + insets.bottom }]}
+        contentContainerStyle={styles.messagesContent}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
       >
         {chatQuery.data?.map((message) => (
-          <View key={message.id} style={styles.messageWrap}>
-            <View style={styles.messageHead}>
-              {message.user.profileImage ? <Image source={{ uri: message.user.profileImage }} style={styles.avatar} /> : <View style={styles.avatar} />}
-              <Text style={[styles.author, { color: colors.text }]}>{message.user.nickname}</Text>
-              <Text style={[styles.time, { color: colors.subtext }]}>{message.createdAt}</Text>
-            </View>
-            {message.quote ? (
-              <View style={[styles.quoteCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                {message.quote.thumbnailUrl ? <Image source={{ uri: message.quote.thumbnailUrl }} style={styles.quoteThumb} /> : null}
-                <View style={styles.quoteCopy}>
-                  <Text style={[styles.quoteAuthor, { color: colors.text }]}>{message.quote.authorNickname}</Text>
-                  <Text style={[styles.quoteCaption, { color: colors.subtext }]} numberOfLines={2}>{message.quote.caption || '사진 인용'}</Text>
-                </View>
-              </View>
+          <View key={message.id} style={[styles.messageRow, message.user.id === currentUser?.id ? styles.messageRowMine : styles.messageRowTheirs]}>
+            {message.user.id !== currentUser?.id ? (
+              message.user.profileImage ? <Image source={{ uri: message.user.profileImage }} style={styles.avatar} /> : <View style={styles.avatar} />
             ) : null}
-            {message.mediaUrl ? <Image source={{ uri: message.mediaUrl }} style={styles.chatImage} /> : null}
-            {!!message.content && <Text style={[styles.messageText, { color: colors.text }]}>{message.content}</Text>}
-            {message.messageType === 'heart' ? <Text style={styles.heartText}>하트를 보냈어요</Text> : null}
+            <View style={[styles.messageWrap, message.user.id === currentUser?.id ? styles.messageWrapMine : styles.messageWrapTheirs]}>
+              <View style={[styles.messageMeta, message.user.id === currentUser?.id ? styles.messageMetaMine : styles.messageMetaTheirs]}>
+                {message.user.id !== currentUser?.id ? (
+                  <Text style={[styles.author, { color: colors.text }]}>{message.user.nickname}</Text>
+                ) : null}
+                <Text style={[styles.time, { color: colors.subtext }]}>{message.createdAt}</Text>
+              </View>
+              <View
+                style={[
+                  styles.bubble,
+                  message.user.id === currentUser?.id
+                    ? [styles.bubbleMine, { backgroundColor: colors.text }]
+                    : [styles.bubbleTheirs, { backgroundColor: colors.card, borderColor: colors.border }],
+                ]}
+              >
+                {message.quote ? (
+                  <View
+                    style={[
+                      styles.quoteCard,
+                      message.user.id === currentUser?.id
+                        ? styles.quoteCardMine
+                        : [styles.quoteCardTheirs, { backgroundColor: colors.background, borderColor: colors.border }],
+                    ]}
+                  >
+                    {message.quote.thumbnailUrl ? <Image source={{ uri: message.quote.thumbnailUrl }} style={styles.quoteThumb} /> : null}
+                    <View style={styles.quoteCopy}>
+                      <Text style={[styles.quoteAuthor, { color: message.user.id === currentUser?.id ? colors.background : colors.text }]}>
+                        {message.quote.authorNickname}
+                      </Text>
+                      <Text
+                        style={[styles.quoteCaption, { color: message.user.id === currentUser?.id ? 'rgba(247,242,236,0.78)' : colors.subtext }]}
+                        numberOfLines={2}
+                      >
+                        {message.quote.caption || '사진 인용'}
+                      </Text>
+                    </View>
+                  </View>
+                ) : null}
+                {message.mediaUrl ? <Image source={{ uri: message.mediaUrl }} style={styles.chatImage} /> : null}
+                {!!message.content && (
+                  <Text style={[styles.messageText, { color: message.user.id === currentUser?.id ? colors.background : colors.text }]}>
+                    {message.content}
+                  </Text>
+                )}
+                {message.messageType === 'heart' ? (
+                  <Text style={[styles.heartText, { color: message.user.id === currentUser?.id ? '#FFD5DE' : '#FB7185' }]}>하트를 보냈어요</Text>
+                ) : null}
+              </View>
+            </View>
           </View>
         ))}
       </ScrollView>
@@ -241,24 +278,28 @@ export default function GroupChatScreen() {
       ) : null}
       {selectedImage ? <Image source={{ uri: selectedImage.uri }} style={styles.selectedImage} /> : null}
 
-      <View style={[styles.composer, { borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 12) }]}>
-        <TouchableOpacity style={styles.composerIcon} onPress={pickImage}>
-          <Ionicons name="image-outline" size={22} color={colors.text} />
-        </TouchableOpacity>
-        <TextInput
-          value={text}
-          onChangeText={setText}
-          style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
-          placeholder="메시지 보내기"
-          placeholderTextColor="#94A3B8"
-        />
-        <TouchableOpacity
-          style={[styles.send, { backgroundColor: colors.text }, (!text.trim() && !selectedImage) && styles.sendDisabled]}
-          onPress={() => sendMutation.mutate()}
-          disabled={sendMutation.isPending || (!text.trim() && !selectedImage)}
-        >
-          <Ionicons name="paper-plane" size={18} color={colors.background} />
-        </TouchableOpacity>
+      <View style={[styles.composerShell, { borderTopColor: colors.border, backgroundColor: colors.background, paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <View style={[styles.composer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TouchableOpacity style={[styles.composerIcon, { backgroundColor: colors.background }]} onPress={pickImage}>
+            <Ionicons name="image-outline" size={22} color={colors.text} />
+          </TouchableOpacity>
+          <TextInput
+            value={text}
+            onChangeText={setText}
+            multiline
+            textAlignVertical="top"
+            style={[styles.input, { color: colors.text }]}
+            placeholder="메시지 보내기"
+            placeholderTextColor="#94A3B8"
+          />
+          <TouchableOpacity
+            style={[styles.send, { backgroundColor: colors.text }, (!text.trim() && !selectedImage) && styles.sendDisabled]}
+            onPress={() => sendMutation.mutate()}
+            disabled={sendMutation.isPending || (!text.trim() && !selectedImage)}
+          >
+            <Ionicons name="paper-plane" size={18} color={colors.background} />
+          </TouchableOpacity>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -273,27 +314,40 @@ const styles = StyleSheet.create({
   ambientChip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
   ambientText: { fontWeight: '700' },
   messages: { flex: 1 },
-  messagesContent: { padding: 20, gap: 14, paddingBottom: 160 },
-  messageWrap: { gap: 8 },
-  messageHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  avatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#CBD5E1' },
+  messagesContent: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 28, gap: 16 },
+  messageRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
+  messageRowMine: { justifyContent: 'flex-end' },
+  messageRowTheirs: { justifyContent: 'flex-start' },
+  messageWrap: { maxWidth: '78%', gap: 6 },
+  messageWrapMine: { alignItems: 'flex-end' },
+  messageWrapTheirs: { alignItems: 'flex-start' },
+  messageMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  messageMetaMine: { justifyContent: 'flex-end' },
+  messageMetaTheirs: { justifyContent: 'flex-start', paddingLeft: 4 },
+  avatar: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#CBD5E1' },
   author: { fontWeight: '800' },
   time: { fontSize: 12, fontWeight: '600' },
-  quoteCard: { flexDirection: 'row', gap: 10, borderWidth: 1, borderRadius: 18, padding: 10 },
+  bubble: { gap: 10, padding: 12, borderWidth: 1, borderRadius: 24 },
+  bubbleMine: { borderColor: 'transparent', borderBottomRightRadius: 8 },
+  bubbleTheirs: { borderBottomLeftRadius: 8 },
+  quoteCard: { flexDirection: 'row', gap: 10, borderWidth: 1, borderRadius: 16, padding: 10 },
+  quoteCardMine: { borderColor: 'rgba(247,242,236,0.18)', backgroundColor: 'rgba(247,242,236,0.08)' },
+  quoteCardTheirs: {},
   quoteThumb: { width: 52, height: 52, borderRadius: 12, backgroundColor: '#CBD5E1' },
   quoteCopy: { flex: 1, justifyContent: 'center' },
   quoteAuthor: { fontWeight: '800' },
   quoteCaption: { marginTop: 4, lineHeight: 18 },
-  chatImage: { width: 180, height: 220, borderRadius: 18, backgroundColor: '#CBD5E1' },
+  chatImage: { width: 200, height: 240, borderRadius: 18, backgroundColor: '#CBD5E1' },
   messageText: { fontSize: 15, lineHeight: 22 },
-  heartText: { color: '#FB7185', fontWeight: '800' },
+  heartText: { fontWeight: '800' },
   quoteComposer: { marginHorizontal: 20, borderWidth: 1, borderRadius: 18, padding: 12, marginBottom: 10 },
   quoteComposerLabel: { fontWeight: '800' },
   quoteComposerText: { marginTop: 4, lineHeight: 18 },
   selectedImage: { width: 72, height: 72, borderRadius: 14, marginHorizontal: 20, marginBottom: 10 },
-  composer: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 28, borderTopWidth: 1 },
-  composerIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  input: { flex: 1, borderWidth: 1, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 12 },
+  composerShell: { paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1 },
+  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, borderWidth: 1, borderRadius: 28, paddingHorizontal: 10, paddingVertical: 10 },
+  composerIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  input: { flex: 1, minHeight: 22, maxHeight: 100, paddingHorizontal: 2, paddingVertical: 8, fontSize: 15, lineHeight: 22 },
   send: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
   sendDisabled: { opacity: 0.45 },
 });

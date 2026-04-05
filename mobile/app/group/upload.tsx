@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, Dimensions, Image, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, Dimensions, Image, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { Video, ResizeMode } from 'expo-av';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { api } from '@/services/api';
 import { useAuthStore } from '@/store/auth';
@@ -29,6 +30,7 @@ export default function UploadScreen() {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const { isDark } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const cameraRef = useRef<CameraView | null>(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [microphonePermission, requestMicrophonePermission] = useMicrophonePermissions();
@@ -257,7 +259,17 @@ export default function UploadScreen() {
   };
 
   return (
-    <ScrollView style={[styles.container, isDark && styles.containerDark]} contentContainerStyle={styles.content}>
+    <KeyboardAvoidingView
+      style={[styles.container, isDark && styles.containerDark]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 8 : 0}
+    >
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 20) + 24 }]}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+    >
       <View style={styles.header}>
         <Text style={[styles.title, isDark && styles.titleDark]}>스토리 업로드</Text>
         <Text style={[styles.headerSub, isDark && styles.headerSubDark]}>{deadlineText}</Text>
@@ -342,7 +354,15 @@ export default function UploadScreen() {
 
       <View style={[styles.panel, isDark && styles.panelDark]}>
         <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>문구</Text>
-        <TextInput value={text} onChangeText={setText} style={[styles.input, isDark && styles.inputDark]} placeholder="오늘의 한 줄을 적어보세요" placeholderTextColor="#94A3B8" />
+        <TextInput
+          value={text}
+          onChangeText={setText}
+          multiline
+          textAlignVertical="top"
+          style={[styles.input, styles.inputMultiline, isDark && styles.inputDark]}
+          placeholder="오늘의 한 줄을 적어보세요"
+          placeholderTextColor="#94A3B8"
+        />
         <View style={styles.row}>
           {quickEmojis.map((emoji) => (
             <TouchableOpacity key={emoji} style={[styles.emojiChip, isDark && styles.emojiChipDark]} onPress={() => setText((current) => `${current}${emoji}`)}>
@@ -368,6 +388,7 @@ export default function UploadScreen() {
         <Text style={styles.submitText}>{uploadMutation.isPending ? '업로드 중...' : '이 스토리 올리기'}</Text>
       </TouchableOpacity>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -458,6 +479,7 @@ const styles = StyleSheet.create({
   panel: { backgroundColor: 'white', borderRadius: 28, padding: 18, borderWidth: 1, borderColor: '#E2E8F0', gap: 12 },
   panelDark: { backgroundColor: '#111827', borderColor: '#1E293B' },
   input: { backgroundColor: '#F8FAFC', borderRadius: 16, padding: 15, color: '#0F172A', borderWidth: 1, borderColor: '#E2E8F0' },
+  inputMultiline: { minHeight: 104 },
   inputDark: { backgroundColor: '#0F172A', borderColor: '#1E293B', color: '#F8FAFC' },
   sectionTitle: { color: '#0F172A', fontWeight: '800', marginTop: 4 },
   sectionTitleDark: { color: '#F8FAFC' },

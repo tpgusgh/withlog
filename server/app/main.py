@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from app.api import auth, groups, posts, videos, comments, stories
 from app.db.session import Base, SessionLocal, engine
-from app.models.group import ChatMessage, Comment, Like, Post, UserStory
+from app.models.group import ChatMessage, Comment, CommentReaction, Like, Post, UserStory
 
 Base.metadata.create_all(bind=engine)
 UPLOAD_ROOT = Path('uploads')
@@ -60,6 +60,13 @@ def ensure_runtime_columns():
             if column not in existing_columns:
                 connection.execute(text(statement))
 
+        existing_comment_columns = {
+            row[1]
+            for row in connection.execute(text("PRAGMA table_info('comments')")).fetchall()
+        }
+        if 'parent_id' not in existing_comment_columns:
+            connection.execute(text("ALTER TABLE comments ADD COLUMN parent_id INTEGER"))
+
 
 def delete_local_upload(path_value: str | None):
     if not path_value or not path_value.startswith('/uploads/'):
@@ -82,6 +89,12 @@ def cleanup_expired_media():
             delete_local_upload(post.thumbnail_url)
 
         if expired_post_ids:
+            expired_comment_ids = [
+                row[0]
+                for row in session.query(Comment.id).filter(Comment.post_id.in_(expired_post_ids)).all()
+            ]
+            if expired_comment_ids:
+                session.query(CommentReaction).filter(CommentReaction.comment_id.in_(expired_comment_ids)).delete(synchronize_session=False)
             session.query(Like).filter(Like.post_id.in_(expired_post_ids)).delete(synchronize_session=False)
             session.query(Comment).filter(Comment.post_id.in_(expired_post_ids)).delete(synchronize_session=False)
             expired_post_ids_sql = ','.join(str(post_id) for post_id in expired_post_ids)

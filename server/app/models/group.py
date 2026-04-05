@@ -55,8 +55,18 @@ class Comment(Base):
     id = Column(Integer, primary_key=True)
     post_id = Column(Integer, ForeignKey('posts.id'), nullable=False)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    parent_id = Column(Integer, ForeignKey('comments.id'), nullable=True)
     content = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class CommentReaction(Base):
+    __tablename__ = 'comment_reactions'
+    id = Column(Integer, primary_key=True)
+    comment_id = Column(Integer, ForeignKey('comments.id'), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    emoji = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (UniqueConstraint('comment_id', 'user_id', name='uq_comment_user_reaction'),)
 
 class Like(Base):
     __tablename__ = 'likes'

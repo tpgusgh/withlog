@@ -17,11 +17,13 @@ export function FeedCard({
   post,
   onQuote,
   onHeart,
+  onComment,
   onPressProfile,
 }: {
   post: Post;
   onQuote?: (post: Post) => void;
   onHeart?: (post: Post) => void;
+  onComment?: (post: Post) => void;
   onPressProfile?: (post: Post) => void;
 }) {
   const { isDark } = useAppTheme();
@@ -60,6 +62,10 @@ export function FeedCard({
           <View style={styles.actions}>
             <TouchableOpacity style={styles.iconButton} onPress={() => onQuote?.(post)}>
               <Ionicons name="arrow-undo-outline" size={24} color="white" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconButton} onPress={() => onComment?.(post)}>
+              <Ionicons name="chatbubble-outline" size={23} color="white" />
+              <Text style={styles.count}>{post.comments}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.iconButton} onPress={() => onHeart?.(post)}>
               <Ionicons name={post.likedByMe ? 'heart' : 'heart-outline'} size={24} color={post.likedByMe ? '#FF4D6D' : 'white'} />

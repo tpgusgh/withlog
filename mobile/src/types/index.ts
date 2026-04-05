@@ -58,3 +58,20 @@ export type ChatMessage = {
   } | null;
   user: Member;
 };
+
+export type CommentReaction = {
+  emoji: string;
+  count: number;
+};
+
+export type CommentItem = {
+  id: number;
+  content: string;
+  createdAt: string;
+  parentId?: number | null;
+  replyCount: number;
+  myReaction?: string | null;
+  reactions: CommentReaction[];
+  replies: CommentItem[];
+  user: Member;
+};

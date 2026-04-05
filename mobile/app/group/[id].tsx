@@ -629,6 +629,15 @@ export default function GroupDetailScreen() {
                     <FeedCard
                       post={mapped}
                       onPressProfile={(selectedPost) => router.push(`/profile/${selectedPost.user.id}`)}
+                      onComment={(selectedPost) =>
+                        router.push({
+                          pathname: '/comments/[postId]',
+                          params: {
+                            postId: String(selectedPost.id),
+                            groupId: String(groupId),
+                          },
+                        })
+                      }
                       onQuote={(quotedPost) =>
                         router.push({
                           pathname: '/group/chat',

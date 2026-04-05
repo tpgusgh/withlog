@@ -10,6 +10,11 @@ class JoinGroupIn(BaseModel):
 
 class CommentIn(BaseModel):
     content: str
+    parent_id: int | None = None
+
+
+class CommentReactionIn(BaseModel):
+    emoji: str
 
 
 class ChatMessageIn(BaseModel):
