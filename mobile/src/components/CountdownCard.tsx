@@ -6,13 +6,12 @@ import { useAppTheme } from '@/store/theme';
 const formatDeadline = (closeAt: string) => {
   const remainingMs = new Date(closeAt).getTime() - Date.now();
   if (remainingMs <= 0) {
-    return '마감됨';
+    return '닫힘';
   }
 
-  const totalSeconds = Math.floor(remainingMs / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}분 ${seconds.toString().padStart(2, '0')}초`;
+  const closeDate = new Date(closeAt);
+  const displayHour = String(closeDate.getHours()).padStart(2, '0');
+  return `${displayHour}:59까지 업로드 가능`;
 };
 
 export function CountdownCard({ slot }: { slot: SlotSummary }) {
@@ -35,7 +34,7 @@ export function CountdownCard({ slot }: { slot: SlotSummary }) {
       </View>
       <Text style={[styles.title, { color: colors.subtext }]}>현재 업로드 슬롯</Text>
       <Text style={[styles.hour, { color: colors.text }]}>{slot.hour}</Text>
-      <Text style={styles.sub}>{deadlineText === '마감됨' ? '이번 슬롯이 마감됐어요' : `마감까지 ${deadlineText}`}</Text>
+      <Text style={styles.sub}>{deadlineText === '닫힘' ? '이번 슬롯이 닫혔어요' : deadlineText}</Text>
       <View style={styles.memberRow}>
         {activeMembers.length ? (
           activeMembers.slice(0, 4).map((member) => (

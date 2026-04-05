@@ -328,11 +328,11 @@ export default function GroupDetailScreen() {
     }
     const remain = new Date(closeAt).getTime() - now.getTime();
     if (remain <= 0) {
-      return '이번 슬롯이 마감됐어요';
+      return '이번 슬롯이 닫혔어요';
     }
-    const minutes = Math.floor(remain / 1000 / 60);
-    const seconds = Math.floor(remain / 1000) % 60;
-    return `${minutes}분 ${String(seconds).padStart(2, '0')}초 후 마감`;
+    const closeDate = new Date(closeAt);
+    const displayHour = String(closeDate.getHours()).padStart(2, '0');
+    return `${displayHour}:59까지 업로드 가능`;
   })();
 
   const timeline = useMemo(() => buildRecentHourTimeline(anchorDate, anchorHour, 24), [anchorDate, anchorHour]);

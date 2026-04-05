@@ -175,12 +175,12 @@ export default function UploadScreen() {
   const deadlineText = (() => {
     const slot = slotQuery.data;
     if (!slot) {
-      return '슬롯 불러오는 중';
+      return '현재 1시간 슬롯 불러오는 중';
     }
     if (!slot.is_open) {
-      return '이번 업로드 창이 닫혔어요';
+      return '이번 1시간 슬롯 업로드가 종료됐어요';
     }
-    return '지금 업로드 가능한 시간대예요';
+    return '이 시간 슬롯은 정각부터 59분까지 올릴 수 있어요';
   })();
 
   const ensurePermissions = async (mode: 'image' | 'video') => {
