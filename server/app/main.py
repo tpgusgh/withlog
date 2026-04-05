@@ -10,7 +10,6 @@ from sqlalchemy import text
 from app.api import auth, groups, posts, videos, comments, stories
 from app.db.session import Base, SessionLocal, engine
 from app.models.group import ChatMessage, Comment, Like, Post, UserStory
-from app.seed import seed_demo_data
 
 Base.metadata.create_all(bind=engine)
 UPLOAD_ROOT = Path('uploads')
@@ -115,8 +114,6 @@ async def cleanup_worker():
 
 
 ensure_runtime_columns()
-with SessionLocal() as session:
-    seed_demo_data(session)
 
 app = FastAPI(title="Hourly Group Story API")
 
