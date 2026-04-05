@@ -1,4 +1,4 @@
-import { Image, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
@@ -61,6 +61,20 @@ export default function ProfileScreen() {
       });
     },
   });
+  const deleteAccountMutation = useMutation({
+    mutationFn: async () => api.delete('/auth/me'),
+    onSuccess: async () => {
+      await logout();
+      queryClient.clear();
+      router.replace('/(auth)/login');
+    },
+    onError: (err) => {
+      Alert.alert(
+        '오류',
+        err instanceof Error ? err.message : '회원탈퇴에 실패했습니다.',
+      );
+    },
+  });
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -71,6 +85,13 @@ export default function ProfileScreen() {
     ]);
     setRefreshing(false);
   }, [queryClient]);
+
+  const confirmDeleteAccount = () => {
+    Alert.alert('회원탈퇴', '정말 탈퇴할까요? 계정과 기록이 삭제됩니다.', [
+      { text: '취소', style: 'cancel' },
+      { text: '탈퇴', style: 'destructive', onPress: () => deleteAccountMutation.mutate() },
+    ]);
+  };
 
   if (!user) {
     return <Redirect href="/(auth)/login" />;
@@ -178,6 +199,17 @@ export default function ProfileScreen() {
         <Text style={[styles.editButtonText, { color: colors.background }]}>프로필 편집</Text>
       </TouchableOpacity>
 
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>정책과 계정</Text>
+        <TouchableOpacity style={[styles.policyRow, { borderColor: colors.border }]} onPress={() => router.push('/profile/privacy')}>
+          <Text style={[styles.policyText, { color: colors.text }]}>개인정보 처리 방침</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.withdrawButton, deleteAccountMutation.isPending && styles.withdrawButtonDisabled]} onPress={confirmDeleteAccount} disabled={deleteAccountMutation.isPending}>
+          <Text style={styles.withdrawButtonText}>{deleteAccountMutation.isPending ? '탈퇴 처리 중...' : '회원탈퇴'}</Text>
+        </TouchableOpacity>
+      </View>
+
       <TouchableOpacity style={styles.logoutButton} onPress={() => void logout()}>
         <Text style={styles.logoutButtonText}>로그아웃</Text>
       </TouchableOpacity>
@@ -230,4 +262,16 @@ const styles = StyleSheet.create({
   recommendMeta: { marginTop: 2, fontWeight: '600' },
   followButton: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10 },
   followButtonText: { fontWeight: '800' },
+  policyRow: {
+    borderTopWidth: 1,
+    paddingTop: 14,
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  policyText: { fontSize: 15, fontWeight: '700' },
+  withdrawButton: { marginTop: 16, backgroundColor: '#FEE2E2', borderRadius: 18, padding: 16, alignItems: 'center' },
+  withdrawButtonDisabled: { opacity: 0.5 },
+  withdrawButtonText: { color: '#B91C1C', fontWeight: '800' },
 });

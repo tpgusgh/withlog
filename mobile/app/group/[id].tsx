@@ -5,6 +5,7 @@ import {
   Image,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  RefreshControl,
   ScrollView,
   Share,
   StyleSheet,
@@ -145,6 +146,7 @@ export default function GroupDetailScreen() {
   const pageWidth = Math.max(width - 16, 1);
   const timelineRef = useRef<ScrollView>(null);
   const [activeIndex, setActiveIndex] = useState(23);
+  const [refreshing, setRefreshing] = useState(false);
 
   const groupQuery = useQuery({
     queryKey: ['group', groupId],
@@ -390,6 +392,18 @@ export default function GroupDetailScreen() {
     setActiveIndex(nextIndex);
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['group', groupId] }),
+      queryClient.invalidateQueries({ queryKey: ['current-slot', groupId] }),
+      queryClient.invalidateQueries({ queryKey: ['group-feed-window', groupId] }),
+      queryClient.invalidateQueries({ queryKey: ['group-chat', groupId] }),
+      queryClient.invalidateQueries({ queryKey: ['blocked-users'] }),
+    ]);
+    setRefreshing(false);
+  };
+
   const likeShareMutation = useMutation({
     mutationFn: async (post: Post) => {
       const likeResponse = await api.post(`/posts/${post.id}/like`);
@@ -436,7 +450,12 @@ export default function GroupDetailScreen() {
   });
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} tintColor={colors.text} />}
+    >
       <View style={[styles.headerShell, { borderBottomColor: colors.border }]}>
         <View style={styles.headerTopLine}>
           <Text style={[styles.headerLabel, { color: colors.subtext }]}>WITHLOG GROUP</Text>

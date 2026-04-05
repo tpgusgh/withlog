@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Image, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -35,6 +35,7 @@ export default function ProfileEditScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const updateUser = useAuthStore((s) => s.updateUser);
+  const logout = useAuthStore((s) => s.logout);
   const setThemeMode = useThemeStore((s) => s.setMode);
   const queryClient = useQueryClient();
   const { colors, isDark } = useAppTheme();
@@ -114,6 +115,20 @@ export default function ProfileEditScreen() {
     },
   });
 
+  const deleteAccountMutation = useMutation({
+    mutationFn: async () => api.delete('/auth/me'),
+    onSuccess: async () => {
+      await logout();
+      await queryClient.clear();
+      router.replace('/(auth)/login');
+    },
+    onError: (err) => {
+      const message =
+        err instanceof AxiosError ? (err.response?.data?.detail as string | undefined) ?? err.message : '회원탈퇴에 실패했습니다.';
+      setError(message);
+    },
+  });
+
   const pickProfileImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
@@ -140,6 +155,13 @@ export default function ProfileEditScreen() {
     const formatted = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
     const next = target === 'start' ? `${formatted} - ${quietEnd ?? '08:00'}` : `${quietStart ?? '22:00'} - ${formatted}`;
     await saveSettings({ ...settings, quietHours: next });
+  };
+
+  const confirmDeleteAccount = () => {
+    Alert.alert('회원탈퇴', '정말 탈퇴할까요? 계정과 기록이 삭제됩니다.', [
+      { text: '취소', style: 'cancel' },
+      { text: '탈퇴', style: 'destructive', onPress: () => deleteAccountMutation.mutate() },
+    ]);
   };
 
   return (
@@ -252,6 +274,16 @@ export default function ProfileEditScreen() {
       </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>정책과 계정</Text>
+        <TouchableOpacity style={[styles.linkRow, { borderColor: colors.border }]} onPress={() => router.push('/profile/privacy')}>
+          <Text style={[styles.linkText, { color: colors.text }]}>개인정보 처리 방침</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.withdrawButton, deleteAccountMutation.isPending && styles.withdrawButtonDisabled]} onPress={confirmDeleteAccount} disabled={deleteAccountMutation.isPending}>
+          <Text style={styles.withdrawButtonText}>{deleteAccountMutation.isPending ? '탈퇴 처리 중...' : '회원탈퇴'}</Text>
+        </TouchableOpacity>
+      </View>
       <TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.text }]} onPress={() => profileMutation.mutate()} disabled={profileMutation.isPending}>
         <Text style={[styles.primaryButtonText, { color: colors.background }]}>{profileMutation.isPending ? '저장 중...' : '저장하기'}</Text>
       </TouchableOpacity>
@@ -290,4 +322,22 @@ const styles = StyleSheet.create({
   primaryButton: { borderRadius: 18, padding: 16, alignItems: 'center' },
   primaryButtonText: { fontWeight: '800' },
   error: { color: '#DC2626', fontWeight: '600' },
+  linkRow: {
+    borderTopWidth: 1,
+    paddingTop: 14,
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  linkText: { fontSize: 15, fontWeight: '700' },
+  withdrawButton: {
+    marginTop: 16,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 18,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  withdrawButtonDisabled: { opacity: 0.5 },
+  withdrawButtonText: { color: '#B91C1C', fontWeight: '800' },
 });

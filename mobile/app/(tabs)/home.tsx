@@ -62,16 +62,18 @@ export default function HomeScreen() {
       return response.data as { slot_hour: number; close_at: string };
     },
   });
+  const joinedGroupIds = (groupsQuery.data ?? []).map((group) => group.id);
+  const currentHour = slotQuery.data?.slot_hour ?? now.getHours();
   const feedQuery = useQuery({
-    queryKey: ['home-feed', primaryGroup?.id],
-    enabled: Boolean(primaryGroup?.id),
+    queryKey: ['home-feed-summary', joinedGroupIds, formatLocalDate()],
+    enabled: joinedGroupIds.length > 0,
     queryFn: async () => {
       const date = formatLocalDate();
-      const response = await api.get(`/groups/${primaryGroup?.id}/feed`, { params: { date } });
-      return response.data as {
+      const responses = await Promise.all(joinedGroupIds.map((groupId) => api.get(`/groups/${groupId}/feed`, { params: { date } })));
+      return responses.map((response) => response.data as {
         hour: number;
         posts: { id: number; file_url: string; created_at?: string | null; user: { id: number; nickname: string; profile_image?: string | null } }[];
-      }[];
+      }[]);
     },
   });
   const storyQuery = useQuery({
@@ -107,21 +109,29 @@ export default function HomeScreen() {
         hasStory: true,
       })) ?? [];
   const storyItems: StoryItem[] = myStory ? [myStory, ...followingStoryItems] : followingStoryItems;
-  const activeMembers =
-    feedQuery.data
-      ?.flatMap((slot) => slot.posts)
-      .map((post) => ({
-        id: post.user.id,
-        nickname: post.user.nickname,
-        profileImage: buildProfileImageUrl(post.user.profile_image, post.user.nickname),
-      }))
-      .filter((member, index, arr) => arr.findIndex((item) => item.id === member.id) === index) ?? [];
+  const activeMembers = Array.from(
+    new Map(
+      (feedQuery.data ?? [])
+        .flatMap((groupFeed) => groupFeed)
+        .filter((slot) => slot.hour === currentHour)
+        .flatMap((slot) => slot.posts)
+        .map((post) => [
+          post.user.id,
+          {
+            id: post.user.id,
+            nickname: post.user.nickname,
+            profileImage: buildProfileImageUrl(post.user.profile_image, post.user.nickname),
+          },
+        ]),
+    ).values(),
+  );
+  const totalMemberCount = Array.from(new Set((groupsQuery.data ?? []).flatMap((group) => group.members.map((member) => member.id)))).length;
   const currentSlot: SlotSummary | null = slotQuery.data
     ? {
         hour: `${String(slotQuery.data.slot_hour).padStart(2, '0')}:00`,
         closeAt: slotQuery.data.close_at,
         activeMembers,
-        memberCount: primaryGroup?.memberCount ?? 0,
+        memberCount: totalMemberCount,
       }
     : null;
 
@@ -129,9 +139,9 @@ export default function HomeScreen() {
     useCallback(() => {
       void queryClient.invalidateQueries({ queryKey: ['groups'] });
       void queryClient.invalidateQueries({ queryKey: ['home-stories'] });
+      void queryClient.invalidateQueries({ queryKey: ['home-feed-summary'] });
       if (primaryGroup?.id) {
         void queryClient.invalidateQueries({ queryKey: ['current-slot', primaryGroup.id] });
-        void queryClient.invalidateQueries({ queryKey: ['home-feed', primaryGroup.id] });
       }
     }, [primaryGroup?.id, queryClient]),
   );
@@ -141,8 +151,8 @@ export default function HomeScreen() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['groups'] }),
       queryClient.invalidateQueries({ queryKey: ['home-stories'] }),
+      queryClient.invalidateQueries({ queryKey: ['home-feed-summary'] }),
       primaryGroup?.id ? queryClient.invalidateQueries({ queryKey: ['current-slot', primaryGroup.id] }) : Promise.resolve(),
-      primaryGroup?.id ? queryClient.invalidateQueries({ queryKey: ['home-feed', primaryGroup.id] }) : Promise.resolve(),
     ]);
     setRefreshing(false);
   }, [primaryGroup?.id, queryClient]);

@@ -99,6 +99,7 @@ export default function RootLayout() {
           <Stack.Screen name="profile/edit" options={{ headerShown: false }} />
           <Stack.Screen name="profile/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="profile/connections" options={{ headerShown: false }} />
+          <Stack.Screen name="profile/privacy" options={{ headerShown: true, title: '개인정보 처리 방침' }} />
           <Stack.Screen name="join" options={{ headerShown: true, title: '그룹 참여' }} />
         </Stack>
       </QueryClientProvider>
