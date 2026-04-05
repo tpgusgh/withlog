@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Dimensions, Image, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, Image, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Video, ResizeMode } from 'expo-av';
 import { AxiosError } from 'axios';
@@ -21,6 +21,7 @@ export default function StoryViewerScreen() {
   const resolvedGroupId = groupId ? Number(groupId) : null;
   const date = formatLocalDate();
   const [activeIndex, setActiveIndex] = useState(0);
+  const [loadingStoryId, setLoadingStoryId] = useState<number | null>(null);
   const isOwnHomeStory = !resolvedGroupId && user?.id === userId;
 
   const feedQuery = useQuery({
@@ -128,9 +129,39 @@ export default function StoryViewerScreen() {
         {stories.map((story) => (
           <View key={story.id} style={styles.page}>
             {story.mediaType === 'video' ? (
-              <Video source={{ uri: story.imageUrl }} style={styles.image} isMuted resizeMode={ResizeMode.COVER} shouldPlay isLooping />
+              <>
+                <Video
+                  source={{ uri: story.imageUrl }}
+                  style={styles.image}
+                  isMuted
+                  resizeMode={ResizeMode.COVER}
+                  shouldPlay
+                  isLooping
+                  onLoadStart={() => setLoadingStoryId(story.id)}
+                  onReadyForDisplay={() => setLoadingStoryId((current) => (current === story.id ? null : current))}
+                  onError={() => setLoadingStoryId((current) => (current === story.id ? null : current))}
+                />
+                {loadingStoryId === story.id ? (
+                  <View style={styles.loadingOverlay}>
+                    <ActivityIndicator size="large" color="#FFFFFF" />
+                  </View>
+                ) : null}
+              </>
             ) : (
-              <Image source={{ uri: story.imageUrl }} style={styles.image} />
+              <>
+                <Image
+                  source={{ uri: story.imageUrl }}
+                  style={styles.image}
+                  onLoadStart={() => setLoadingStoryId(story.id)}
+                  onLoadEnd={() => setLoadingStoryId((current) => (current === story.id ? null : current))}
+                  onError={() => setLoadingStoryId((current) => (current === story.id ? null : current))}
+                />
+                {loadingStoryId === story.id ? (
+                  <View style={styles.loadingOverlay}>
+                    <ActivityIndicator size="large" color="#FFFFFF" />
+                  </View>
+                ) : null}
+              </>
             )}
             <View style={styles.overlay}>
               <View style={styles.topBar}>
@@ -164,6 +195,17 @@ const styles = StyleSheet.create({
   closeButton: { width: 40, height: 40, borderRadius: 999, backgroundColor: 'rgba(15,23,42,0.48)', alignItems: 'center', justifyContent: 'center' },
   page: { width, height, padding: 14, justifyContent: 'center' },
   image: { width: width - 28, height: height - 120, borderRadius: 32, backgroundColor: '#334155' },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 14,
+    left: 14,
+    right: 14,
+    bottom: 60,
+    borderRadius: 32,
+    backgroundColor: 'rgba(2,6,23,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   overlay: { ...StyleSheet.absoluteFillObject, paddingHorizontal: 36, paddingVertical: 42, justifyContent: 'space-between' },
   topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 70 },
   userWrap: { flexDirection: 'row', alignItems: 'center', gap: 10 },

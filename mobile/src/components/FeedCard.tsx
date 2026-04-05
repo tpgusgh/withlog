@@ -1,4 +1,5 @@
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Video, ResizeMode } from 'expo-av';
 import type { Post } from '@/types';
@@ -30,14 +31,45 @@ export function FeedCard({
 }) {
   const { isDark } = useAppTheme();
   const displayDate = post.dateLabel ?? formatDisplayDate(new Date());
+  const [mediaLoading, setMediaLoading] = useState(true);
 
   return (
     <View style={[styles.card, isDark && styles.cardDark]}>
       <TouchableOpacity activeOpacity={0.96} onPress={() => onOpenMedia?.(post)}>
         {post.mediaType === 'video' ? (
-          <Video source={{ uri: post.thumbnail }} style={styles.image} isMuted resizeMode={ResizeMode.COVER} shouldPlay isLooping />
+          <View>
+            <Video
+              source={{ uri: post.thumbnail }}
+              style={styles.image}
+              isMuted
+              resizeMode={ResizeMode.COVER}
+              shouldPlay
+              isLooping
+              onLoadStart={() => setMediaLoading(true)}
+              onReadyForDisplay={() => setMediaLoading(false)}
+              onError={() => setMediaLoading(false)}
+            />
+            {mediaLoading ? (
+              <View style={styles.loadingOverlay}>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              </View>
+            ) : null}
+          </View>
         ) : (
-          <Image source={{ uri: post.thumbnail }} style={styles.image} />
+          <View>
+            <Image
+              source={{ uri: post.thumbnail }}
+              style={styles.image}
+              onLoadStart={() => setMediaLoading(true)}
+              onLoadEnd={() => setMediaLoading(false)}
+              onError={() => setMediaLoading(false)}
+            />
+            {mediaLoading ? (
+              <View style={styles.loadingOverlay}>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              </View>
+            ) : null}
+          </View>
         )}
       </TouchableOpacity>
       <View style={styles.overlay}>
@@ -96,6 +128,12 @@ const styles = StyleSheet.create({
   },
   cardDark: { backgroundColor: '#1B1917', shadowColor: '#000000' },
   image: { width: '100%', aspectRatio: 1, backgroundColor: '#E2E8F0' },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15,23,42,0.18)',
+  },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     padding: 28,

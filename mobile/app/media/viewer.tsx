@@ -1,13 +1,15 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Pressable, StyleSheet, View, Image } from 'react-native';
+import { Pressable, StyleSheet, View, Image, ActivityIndicator } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
+import { useState } from 'react';
 
 export default function MediaViewerScreen() {
   const router = useRouter();
   const { uri, type } = useLocalSearchParams<{ uri?: string; type?: string }>();
   const resolvedUri = uri ? decodeURIComponent(uri) : '';
   const isVideo = type === 'video';
+  const [loading, setLoading] = useState(true);
 
   return (
     <View style={styles.container}>
@@ -16,9 +18,31 @@ export default function MediaViewerScreen() {
       </Pressable>
       {resolvedUri ? (
         isVideo ? (
-          <Video source={{ uri: resolvedUri }} style={styles.media} useNativeControls resizeMode={ResizeMode.CONTAIN} shouldPlay />
+          <>
+            <Video
+              source={{ uri: resolvedUri }}
+              style={styles.media}
+              useNativeControls
+              resizeMode={ResizeMode.CONTAIN}
+              shouldPlay
+              onLoadStart={() => setLoading(true)}
+              onReadyForDisplay={() => setLoading(false)}
+              onError={() => setLoading(false)}
+            />
+            {loading ? <ActivityIndicator size="large" color="#FFFFFF" style={styles.loader} /> : null}
+          </>
         ) : (
-          <Image source={{ uri: resolvedUri }} style={styles.media} resizeMode="contain" />
+          <>
+            <Image
+              source={{ uri: resolvedUri }}
+              style={styles.media}
+              resizeMode="contain"
+              onLoadStart={() => setLoading(true)}
+              onLoadEnd={() => setLoading(false)}
+              onError={() => setLoading(false)}
+            />
+            {loading ? <ActivityIndicator size="large" color="#FFFFFF" style={styles.loader} /> : null}
+          </>
         )
       ) : null}
     </View>
@@ -40,4 +64,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   media: { width: '100%', height: '100%' },
+  loader: { position: 'absolute' },
 });

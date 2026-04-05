@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import Response
 from sqlalchemy import text
 from app.api import auth, groups, posts, videos, comments, stories
 from app.db.session import Base, SessionLocal, engine
@@ -18,6 +19,13 @@ GENERATED_ROOT = SERVER_ROOT / 'generated'
 RETENTION_DAYS = 7
 DAILY_VIDEO_RETENTION_HOURS = 24
 GENERATED_ROOT.mkdir(exist_ok=True)
+
+
+class CachedStaticFiles(StaticFiles):
+    def file_response(self, *args, **kwargs) -> Response:
+        response = super().file_response(*args, **kwargs)
+        response.headers['Cache-Control'] = 'public, max-age=86400, immutable'
+        return response
 
 
 def ensure_runtime_columns():
@@ -180,8 +188,8 @@ app.include_router(posts.router, prefix="/posts", tags=["posts"])
 app.include_router(comments.router, prefix="/comments", tags=["comments"])
 app.include_router(videos.router, prefix="/videos", tags=["videos"])
 app.include_router(stories.router, prefix="/stories", tags=["stories"])
-app.mount("/uploads", StaticFiles(directory=UPLOAD_ROOT), name="uploads")
-app.mount("/generated", StaticFiles(directory=GENERATED_ROOT), name="generated")
+app.mount("/uploads", CachedStaticFiles(directory=UPLOAD_ROOT), name="uploads")
+app.mount("/generated", CachedStaticFiles(directory=GENERATED_ROOT), name="generated")
 
 
 @app.on_event('startup')

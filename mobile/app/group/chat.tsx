@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
+  ActivityIndicator,
   Alert,
   Image,
   KeyboardAvoidingView,
@@ -32,6 +33,27 @@ const AMBIENT_TRACKS = [
   { key: 'rain', label: '잔잔한 비', uri: 'https://actions.google.com/sounds/v1/ambiences/rain_on_roof.ogg' },
   { key: 'forest', label: '숲 소리', uri: 'https://actions.google.com/sounds/v1/ambiences/forest_ambience.ogg' },
 ];
+
+function LoadingImage({ uri, style }: { uri: string; style: object }) {
+  const [loading, setLoading] = useState(true);
+
+  return (
+    <View>
+      <Image
+        source={{ uri }}
+        style={style}
+        onLoadStart={() => setLoading(true)}
+        onLoadEnd={() => setLoading(false)}
+        onError={() => setLoading(false)}
+      />
+      {loading ? (
+        <View style={styles.imageLoader}>
+          <ActivityIndicator size="small" color="#FFFFFF" />
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
 export default function GroupChatScreen() {
   const { id, quotePostId, quoteCaption, quoteThumbnail, quoteAuthor, quoteMode } = useLocalSearchParams<{
@@ -315,7 +337,7 @@ export default function GroupChatScreen() {
                         : [styles.quoteCardTheirs, { backgroundColor: colors.background, borderColor: colors.border }],
                     ]}
                   >
-                    {message.quote.thumbnailUrl ? <Image source={{ uri: message.quote.thumbnailUrl }} style={styles.quoteThumb} /> : null}
+                    {message.quote.thumbnailUrl ? <LoadingImage uri={message.quote.thumbnailUrl} style={styles.quoteThumb} /> : null}
                     <View style={styles.quoteCopy}>
                       <Text style={[styles.quoteAuthor, { color: message.user.id === currentUser?.id ? colors.background : colors.text }]}>
                         {message.quote.authorNickname}
@@ -342,7 +364,7 @@ export default function GroupChatScreen() {
                       })
                     }
                   >
-                    <Image source={{ uri: message.mediaUrl }} style={styles.chatImage} />
+                    <LoadingImage uri={message.mediaUrl} style={styles.chatImage} />
                   </TouchableOpacity>
                 ) : null}
                 {!!message.content && (
@@ -396,7 +418,7 @@ export default function GroupChatScreen() {
           <Text style={[styles.quoteComposerText, { color: colors.subtext }]} numberOfLines={2}>{quote.authorNickname} · {quote.caption || '사진 기록'}</Text>
         </View>
       ) : null}
-      {selectedImage ? <Image source={{ uri: selectedImage.uri }} style={styles.selectedImage} /> : null}
+      {selectedImage ? <LoadingImage uri={selectedImage.uri} style={styles.selectedImage} /> : null}
 
       <Modal visible={Boolean(selectedMessage)} transparent animationType="fade" onRequestClose={() => setSelectedMessage(null)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setSelectedMessage(null)}>
@@ -497,6 +519,13 @@ const styles = StyleSheet.create({
   quoteAuthor: { fontWeight: '800' },
   quoteCaption: { marginTop: 4, lineHeight: 18 },
   chatImage: { width: 252, height: 316, borderRadius: 18, backgroundColor: '#CBD5E1' },
+  imageLoader: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15,23,42,0.16)',
+    borderRadius: 18,
+  },
   messageText: { fontSize: 15, lineHeight: 22 },
   heartText: { fontWeight: '800' },
   replyButton: {
