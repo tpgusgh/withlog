@@ -42,7 +42,7 @@ def generate_daily_video(group_id: int, date: str | None = None, db: Session = D
         posts = db.query(Post).filter(Post.group_id == group_id).join(Slot, Slot.id == Post.slot_id).filter(Slot.slot_date == date).all()
         window_points = [(date, hour) for hour in range(24)]
         video_key = date
-        missing_detail = '모든 멤버가 올린 시간대가 없어 요약 영상을 만들 수 없습니다.'
+        missing_detail = '이 날짜에는 요약할 기록이 없습니다.'
     else:
         now = local_now()
         window_points = []
@@ -54,7 +54,7 @@ def generate_daily_video(group_id: int, date: str | None = None, db: Session = D
         slots_by_key = {(slot.slot_date, slot.slot_hour): slot for slot in slots}
         posts = db.query(Post).filter(Post.group_id == group_id).join(Slot, Slot.id == Post.slot_id).filter(Slot.slot_date.in_(target_dates)).all()
         video_key = rolling_window_key(now)
-        missing_detail = '최근 24시간 안에 모든 멤버가 올린 시간대가 없어 요약 영상을 만들 수 없습니다.'
+        missing_detail = '최근 24시간 안에 요약할 기록이 없습니다.'
 
     posts_by_slot_user = {(post.slot_id, post.user_id): post for post in posts}
 
@@ -65,22 +65,21 @@ def generate_daily_video(group_id: int, date: str | None = None, db: Session = D
             continue
 
         entries = []
-        has_all_member_posts = True
+        has_any_post = False
         for member in members:
             post = posts_by_slot_user.get((slot.id, member.id))
-            if not post:
-                has_all_member_posts = False
-                break
             entries.append(
                 {
                     'nickname': member.nickname,
-                    'media_path': post.file_url,
-                    'media_type': post.media_type,
-                    'caption': post.caption_text,
+                    'media_path': post.file_url if post else None,
+                    'media_type': post.media_type if post else None,
+                    'caption': post.caption_text if post else '',
                 }
             )
+            if post:
+                has_any_post = True
 
-        if has_all_member_posts and entries:
+        if has_any_post and entries:
             slot_layouts.append({'hour': hour, 'entries': entries})
 
     if not slot_layouts:
