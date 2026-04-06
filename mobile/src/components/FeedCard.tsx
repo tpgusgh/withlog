@@ -32,6 +32,7 @@ export function FeedCard({
   const { isDark } = useAppTheme();
   const displayDate = post.dateLabel ?? formatDisplayDate(new Date());
   const [mediaLoading, setMediaLoading] = useState(true);
+  const filterLabel = post.filter && post.filter !== 'none' ? filterLabels[post.filter] ?? post.filter : '';
 
   return (
     <View style={[styles.card, isDark && styles.cardDark]}>
@@ -94,7 +95,7 @@ export function FeedCard({
         </View>
 
         <View style={styles.bottomRow}>
-          <Text style={styles.filter}>{filterLabels[post.filter] ?? post.filter}</Text>
+          {filterLabel ? <Text style={styles.filter}>{filterLabel}</Text> : <View />}
           <View style={styles.actions}>
             <TouchableOpacity style={styles.iconButton} onPress={() => onQuote?.(post)}>
               <Ionicons name="arrow-undo-outline" size={24} color="white" />

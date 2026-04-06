@@ -41,13 +41,6 @@ export default function UploadScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [now, setNow] = useState(new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
   useEffect(() => {
     if (!isRecording) {
       setRecordingSeconds(0);
@@ -64,7 +57,7 @@ export default function UploadScreen() {
     enabled: Number.isFinite(groupId),
     queryFn: async () => {
       const response = await api.get(`/groups/${groupId}/current-slot`);
-      return response.data as { slot_id: number; is_open: boolean };
+      return response.data as { slot_id: number; is_open: boolean; slot_hour?: number; close_at?: string; slot_date?: string };
     },
   });
 
@@ -181,8 +174,13 @@ export default function UploadScreen() {
     if (!slot) {
       return '현재 1시간 슬롯 불러오는 중';
     }
-    return '이 시간 슬롯은 정각부터 59분까지 올릴 수 있어요';
+    return `${slot.slot_hour ?? new Date().getHours()}시 59분까지 올릴 수 있어요`;
   })();
+
+  const slotHourLabel = slotQuery.data ? `${slotQuery.data.slot_hour ?? new Date().getHours()}시` : '--';
+  const slotDateLabel = slotQuery.data?.slot_date
+    ? slotQuery.data.slot_date.replaceAll('-', '.')
+    : formatLocalDate().replaceAll('-', '.');
 
   const ensurePermissions = async (mode: 'image' | 'video') => {
     const nextCamera = cameraPermission?.granted ? cameraPermission : await requestCameraPermission();
@@ -267,7 +265,7 @@ export default function UploadScreen() {
       <View style={[styles.infoCard, isDark && styles.infoCardDark]}>
         <Text style={styles.infoLabel}>현재 슬롯</Text>
         <Text style={[styles.infoHour, isDark && styles.infoHourDark]}>
-          {slotQuery.data ? `${String(new Date().getHours()).padStart(2, '0')}:00` : '--:--'}
+          {slotHourLabel}
         </Text>
         <Text style={[styles.infoCopy, isDark && styles.infoCopyDark]}>
           {slotQuery.data ? '앱 안 카메라로 바로 찍고 올릴 수 있어요.' : '슬롯 정보를 불러오는 중이에요.'}
@@ -305,7 +303,7 @@ export default function UploadScreen() {
         )}
         <View style={styles.dateBadge}>
           <Text style={styles.dateText}>
-            {now.getFullYear()}.{String(now.getMonth() + 1).padStart(2, '0')}.{String(now.getDate()).padStart(2, '0')}
+            {slotDateLabel}
           </Text>
         </View>
         {captureMode === 'video' && !asset ? (
@@ -317,7 +315,7 @@ export default function UploadScreen() {
           </View>
         ) : null}
         <View pointerEvents="none" style={styles.overlayWrap}>
-          <Text style={styles.overlayTime}>{`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`}</Text>
+          <Text style={styles.overlayTime}>{slotHourLabel}</Text>
           <Text style={styles.overlay}>{text}</Text>
         </View>
       </View>

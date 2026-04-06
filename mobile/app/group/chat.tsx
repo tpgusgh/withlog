@@ -92,6 +92,14 @@ export default function GroupChatScreen() {
         : null,
     [quoteAuthor, quoteCaption, quoteMode, quotePostId, quoteThumbnail],
   );
+  const yesterday = useMemo(() => {
+    const value = new Date();
+    value.setDate(value.getDate() - 1);
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
 
   useEffect(() => {
     const syncAmbient = async () => {
@@ -159,6 +167,22 @@ export default function GroupChatScreen() {
       );
     },
   });
+  const yesterdayDailyQuery = useQuery({
+    queryKey: ['daily-video', groupId, yesterday],
+    enabled: Number.isFinite(groupId),
+    queryFn: async () => {
+      const response = await api.get(`/videos/group/${groupId}/daily`, { params: { date: yesterday } });
+      return response.data as { status: string; output_url?: string };
+    },
+  });
+  const yesterdayFeedQuery = useQuery({
+    queryKey: ['group-feed-yesterday', groupId, yesterday],
+    enabled: Number.isFinite(groupId),
+    queryFn: async () => {
+      const response = await api.get(`/groups/${groupId}/feed`, { params: { date: yesterday } });
+      return response.data as { hour: number; posts?: { id: number }[] }[];
+    },
+  });
   const messagesById = useMemo(() => {
     const map = new Map<number, ChatMessage>();
     for (const message of chatQuery.data ?? []) {
@@ -166,6 +190,14 @@ export default function GroupChatScreen() {
     }
     return map;
   }, [chatQuery.data]);
+  const shouldSuggestDailyVideo = useMemo(() => {
+    if (yesterdayDailyQuery.data?.status === 'done') {
+      return false;
+    }
+    return Boolean(
+      yesterdayFeedQuery.data?.some((slot) => Array.isArray(slot.posts) && slot.posts.length > 0),
+    );
+  }, [yesterdayDailyQuery.data?.status, yesterdayFeedQuery.data]);
 
   useEffect(() => {
     if (!chatQuery.data?.length) {
@@ -259,6 +291,27 @@ export default function GroupChatScreen() {
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
       >
+        {shouldSuggestDailyVideo ? (
+          <TouchableOpacity
+            activeOpacity={0.92}
+            style={[styles.systemCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() =>
+              router.push({
+                pathname: '/group/daily-video',
+                params: { id: String(groupId), date: yesterday },
+              })
+            }
+          >
+            <View style={[styles.systemBadge, { backgroundColor: colors.text }]}>
+              <Ionicons name="sparkles-outline" size={14} color={colors.background} />
+              <Text style={[styles.systemBadgeText, { color: colors.background }]}>SYSTEM</Text>
+            </View>
+            <Text style={[styles.systemTitle, { color: colors.text }]}>어제 영상을 만들까요?</Text>
+            <Text style={[styles.systemText, { color: colors.subtext }]}>
+              어제 기록이 남아 있어요. 눌러서 바로 요약 영상 만들기로 넘어갈 수 있어요.
+            </Text>
+          </TouchableOpacity>
+        ) : null}
         {chatQuery.data?.map((message) => {
           const repliedMessage = message.reply?.messageId ? messagesById.get(message.reply.messageId) : null;
           const replyAuthor = message.reply?.authorNickname || repliedMessage?.user.nickname || '이전 메시지';
@@ -484,6 +537,11 @@ const styles = StyleSheet.create({
   ambientText: { fontWeight: '700' },
   messages: { flex: 1 },
   messagesContent: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 28, gap: 16 },
+  systemCard: { borderWidth: 1, borderRadius: 24, padding: 16, gap: 10 },
+  systemBadge: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  systemBadgeText: { fontSize: 11, fontWeight: '900', letterSpacing: 0.6 },
+  systemTitle: { fontSize: 18, fontWeight: '900' },
+  systemText: { lineHeight: 20, fontWeight: '600' },
   messageRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
   messageRowMine: { justifyContent: 'flex-end' },
   messageRowTheirs: { justifyContent: 'flex-start' },

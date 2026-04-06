@@ -34,18 +34,30 @@ def generate_daily_video(group_id: int, date: str, db: Session = Depends(get_db)
     slot_layouts = []
     for hour in range(24):
         slot = slots_by_hour.get(hour)
+        if not slot:
+            continue
+
         entries = []
+        has_all_member_posts = True
         for member in members:
-            post = posts_by_slot_user.get((slot.id, member.id)) if slot else None
+            post = posts_by_slot_user.get((slot.id, member.id))
+            if not post:
+                has_all_member_posts = False
+                break
             entries.append(
                 {
                     'nickname': member.nickname,
-                    'media_path': post.file_url if post else None,
-                    'media_type': post.media_type if post else None,
-                    'caption': post.caption_text if post else '',
+                    'media_path': post.file_url,
+                    'media_type': post.media_type,
+                    'caption': post.caption_text,
                 }
             )
-        slot_layouts.append({'hour': hour, 'entries': entries})
+
+        if has_all_member_posts and entries:
+            slot_layouts.append({'hour': hour, 'entries': entries})
+
+    if not slot_layouts:
+        raise HTTPException(status_code=400, detail='모든 멤버가 올린 시간대가 없어 요약 영상을 만들 수 없습니다.')
 
     output_url = render_daily_video(group_id, date, slot_layouts)
     daily = db.query(DailyVideo).filter(DailyVideo.group_id == group_id, DailyVideo.video_date == date).order_by(DailyVideo.id.desc()).first()
