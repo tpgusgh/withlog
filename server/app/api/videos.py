@@ -47,22 +47,14 @@ def generate_daily_video(group_id: int, date: str | None = None, db: Session = D
     if not members:
         raise HTTPException(status_code=400, detail='그룹 멤버가 없습니다.')
 
-    if date:
-        slots = db.query(Slot).filter(Slot.group_id == group_id, Slot.slot_date == date).all()
-        slots_by_key = {(slot.slot_date, slot.slot_hour): slot for slot in slots}
-        posts = db.query(Post).filter(Post.group_id == group_id).join(Slot, Slot.id == Post.slot_id).filter(Slot.slot_date == date).all()
-        window_points = [(date, hour) for hour in range(24)]
-        video_key = date
-        missing_detail = '이 날짜에는 요약할 기록이 없습니다.'
-    else:
-        now = local_now()
-        window_points = rolling_window_points(now)
-        target_dates = sorted({slot_date for slot_date, _ in window_points})
-        slots = db.query(Slot).filter(Slot.group_id == group_id, Slot.slot_date.in_(target_dates)).all()
-        slots_by_key = {(slot.slot_date, slot.slot_hour): slot for slot in slots}
-        posts = db.query(Post).filter(Post.group_id == group_id).join(Slot, Slot.id == Post.slot_id).filter(Slot.slot_date.in_(target_dates)).all()
-        video_key = rolling_window_key(now)
-        missing_detail = '최근 24시간 안에 요약할 기록이 없습니다.'
+    now = local_now()
+    window_points = rolling_window_points(now)
+    target_dates = sorted({slot_date for slot_date, _ in window_points})
+    slots = db.query(Slot).filter(Slot.group_id == group_id, Slot.slot_date.in_(target_dates)).all()
+    slots_by_key = {(slot.slot_date, slot.slot_hour): slot for slot in slots}
+    posts = db.query(Post).filter(Post.group_id == group_id).join(Slot, Slot.id == Post.slot_id).filter(Slot.slot_date.in_(target_dates)).all()
+    video_key = rolling_window_key(now)
+    missing_detail = '최근 24시간 안에 요약할 기록이 없습니다.'
 
     posts_by_slot_user = {(post.slot_id, post.user_id): post for post in posts}
 
@@ -108,7 +100,7 @@ def generate_daily_video(group_id: int, date: str | None = None, db: Session = D
 
 @router.get('/group/{group_id}/daily')
 def get_daily_video(group_id: int, date: str | None = None, db: Session = Depends(get_db)):
-    video_key = date or rolling_window_key(local_now())
+    video_key = rolling_window_key(local_now())
     daily = db.query(DailyVideo).filter(DailyVideo.group_id == group_id, DailyVideo.video_date == video_key).order_by(DailyVideo.id.desc()).first()
     if not daily:
         return {'status': 'missing'}

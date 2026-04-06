@@ -92,14 +92,6 @@ export default function GroupChatScreen() {
         : null,
     [quoteAuthor, quoteCaption, quoteMode, quotePostId, quoteThumbnail],
   );
-  const yesterday = useMemo(() => {
-    const value = new Date();
-    value.setDate(value.getDate() - 1);
-    const year = value.getFullYear();
-    const month = String(value.getMonth() + 1).padStart(2, '0');
-    const day = String(value.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }, []);
 
   useEffect(() => {
     const syncAmbient = async () => {
@@ -167,20 +159,50 @@ export default function GroupChatScreen() {
       );
     },
   });
-  const yesterdayDailyQuery = useQuery({
-    queryKey: ['daily-video', groupId, yesterday],
+  const currentSlotQuery = useQuery({
+    queryKey: ['current-slot', groupId],
     enabled: Number.isFinite(groupId),
     queryFn: async () => {
-      const response = await api.get(`/videos/group/${groupId}/daily`, { params: { date: yesterday } });
+      const response = await api.get(`/groups/${groupId}/current-slot`);
+      return response.data as { slot_date: string; slot_hour: number; close_at: string; is_open: boolean };
+    },
+  });
+  const anchorDate = currentSlotQuery.data?.slot_date;
+  const anchorHour = currentSlotQuery.data?.slot_hour;
+  const previousDate = useMemo(() => {
+    if (!anchorDate) {
+      return null;
+    }
+    const value = new Date(`${anchorDate}T00:00:00`);
+    value.setDate(value.getDate() - 1);
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, [anchorDate]);
+  const rollingDailyQuery = useQuery({
+    queryKey: ['daily-video', groupId, 'rolling'],
+    enabled: Number.isFinite(groupId),
+    queryFn: async () => {
+      const response = await api.get(`/videos/group/${groupId}/daily`);
       return response.data as { status: string; output_url?: string };
     },
   });
-  const yesterdayFeedQuery = useQuery({
-    queryKey: ['group-feed-yesterday', groupId, yesterday],
-    enabled: Number.isFinite(groupId),
+  const recentFeedQuery = useQuery({
+    queryKey: ['group-feed-recent-24h', groupId, anchorDate, anchorHour],
+    enabled: Number.isFinite(groupId) && Boolean(anchorDate) && typeof anchorHour === 'number' && Boolean(previousDate),
     queryFn: async () => {
-      const response = await api.get(`/groups/${groupId}/feed`, { params: { date: yesterday } });
-      return response.data as { hour: number; posts?: { id: number }[] }[];
+      const [todayResponse, previousResponse] = await Promise.all([
+        api.get(`/groups/${groupId}/feed`, { params: { date: anchorDate } }),
+        api.get(`/groups/${groupId}/feed`, { params: { date: previousDate } }),
+      ]);
+      const hasPostsInWindow = (slots: { hour: number; posts?: { id: number }[] }[], predicate: (hour: number) => boolean) =>
+        slots.some((slot) => predicate(slot.hour) && Array.isArray(slot.posts) && slot.posts.length > 0);
+
+      return (
+        hasPostsInWindow(previousResponse.data as { hour: number; posts?: { id: number }[] }[], (hour) => hour >= (anchorHour ?? 0)) ||
+        hasPostsInWindow(todayResponse.data as { hour: number; posts?: { id: number }[] }[], (hour) => hour <= (anchorHour ?? 23))
+      );
     },
   });
   const messagesById = useMemo(() => {
@@ -191,13 +213,11 @@ export default function GroupChatScreen() {
     return map;
   }, [chatQuery.data]);
   const shouldSuggestDailyVideo = useMemo(() => {
-    if (yesterdayDailyQuery.data?.status === 'done') {
+    if (rollingDailyQuery.data?.status === 'done') {
       return false;
     }
-    return Boolean(
-      yesterdayFeedQuery.data?.some((slot) => Array.isArray(slot.posts) && slot.posts.length > 0),
-    );
-  }, [yesterdayDailyQuery.data?.status, yesterdayFeedQuery.data]);
+    return Boolean(recentFeedQuery.data);
+  }, [recentFeedQuery.data, rollingDailyQuery.data?.status]);
 
   useEffect(() => {
     if (!chatQuery.data?.length) {
@@ -298,7 +318,7 @@ export default function GroupChatScreen() {
             onPress={() =>
               router.push({
                 pathname: '/group/daily-video',
-                params: { id: String(groupId), date: yesterday },
+                params: { id: String(groupId) },
               })
             }
           >
@@ -306,9 +326,9 @@ export default function GroupChatScreen() {
               <Ionicons name="sparkles-outline" size={14} color={colors.background} />
               <Text style={[styles.systemBadgeText, { color: colors.background }]}>SYSTEM</Text>
             </View>
-            <Text style={[styles.systemTitle, { color: colors.text }]}>어제 영상을 만들까요?</Text>
+            <Text style={[styles.systemTitle, { color: colors.text }]}>최근 24시간 영상을 만들까요?</Text>
             <Text style={[styles.systemText, { color: colors.subtext }]}>
-              어제 기록이 남아 있어요. 눌러서 바로 요약 영상 만들기로 넘어갈 수 있어요.
+              최근 24시간 기록이 남아 있어요. 눌러서 바로 요약 영상 만들기로 넘어갈 수 있어요.
             </Text>
           </TouchableOpacity>
         ) : null}

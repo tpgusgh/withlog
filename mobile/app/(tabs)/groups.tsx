@@ -4,8 +4,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { useRouter } from 'expo-router';
 import { api } from '@/services/api';
+import { useAuthStore } from '@/store/auth';
 import { useAppTheme } from '@/store/theme';
 import type { Group } from '@/types';
+
+const uploadedMoodEmojis = ['🤍', '💛', '🧡', '💖', '✨', '🌟'];
 
 const mapGroup = (group: {
   id: number;
@@ -31,6 +34,7 @@ const mapGroup = (group: {
 
 export default function GroupsScreen() {
   const { colors } = useAppTheme();
+  const user = useAuthStore((state) => state.user);
   const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -48,6 +52,30 @@ export default function GroupsScreen() {
     queryFn: async () => {
       const response = await api.get('/groups/public');
       return (response.data as Parameters<typeof mapGroup>[0][]).map(mapGroup);
+    },
+  });
+  const currentHour = new Date().getHours();
+  const currentDate = new Date();
+  const currentDateKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+  const uploadedGroupsQuery = useQuery({
+    queryKey: ['groups-current-slot-uploaded', groupsQuery.data?.map((group) => group.id).join(','), currentDateKey, currentHour, user?.id],
+    enabled: Boolean(groupsQuery.data?.length && user?.id),
+    queryFn: async () => {
+      const groups = groupsQuery.data ?? [];
+      const responses = await Promise.all(
+        groups.map((group) => api.get(`/groups/${group.id}/feed`, { params: { date: currentDateKey } })),
+      );
+      const uploadedGroupIds = new Set<number>();
+      responses.forEach((response, index) => {
+        const slots = response.data as { hour: number; posts?: { user: { id: number } }[] }[];
+        const hasUploaded = slots.some(
+          (slot) => slot.hour === currentHour && Array.isArray(slot.posts) && slot.posts.some((post) => post.user.id === user?.id),
+        );
+        if (hasUploaded) {
+          uploadedGroupIds.add(groups[index].id);
+        }
+      });
+      return uploadedGroupIds;
     },
   });
   const joinMutation = useMutation({
@@ -115,8 +143,16 @@ export default function GroupsScreen() {
       ) : null}
       {groupsQuery.data?.map((group) => (
         <TouchableOpacity key={group.id} style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => router.push(`/group/${group.id}`)}>
-          <Text style={[styles.cardTitle, { color: colors.text }]}>{group.name}</Text>
-          <Text style={[styles.cardSub, { color: colors.subtext }]}>{group.memberCount}/{group.maxMembers}명 · {group.isPublic ? '공개' : group.inviteCode}</Text>
+          <View style={styles.groupCardTop}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>{group.name}</Text>
+            {uploadedGroupsQuery.data?.has(group.id) ? (
+              <Text style={styles.groupUploadedEmoji}>{uploadedMoodEmojis[group.id % uploadedMoodEmojis.length]}</Text>
+            ) : null}
+          </View>
+          <Text style={[styles.cardSub, { color: colors.subtext }]}>
+            {group.memberCount}/{group.maxMembers}명 · {group.isPublic ? '공개' : group.inviteCode}
+            {uploadedGroupsQuery.data?.has(group.id) ? ' · 올렸어요' : ''}
+          </Text>
         </TouchableOpacity>
       ))}
     </ScrollView>
@@ -133,6 +169,8 @@ const styles = StyleSheet.create({
   createBtn: { backgroundColor: '#171412', borderRadius: 22, padding: 18, alignItems: 'center' },
   createText: { color: 'white', fontWeight: '700' },
   card: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: '#E2E8F0' },
+  groupCardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  groupUploadedEmoji: { fontSize: 24 },
   cardCopy: { flex: 1 },
   cardTitle: { color: '#0F172A', fontWeight: '700', fontSize: 18 },
   cardSub: { color: '#64748B', marginTop: 8 },
