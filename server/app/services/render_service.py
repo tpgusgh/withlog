@@ -90,6 +90,17 @@ def _text_size(draw: ImageDraw.ImageDraw, text: str, font) -> tuple[float, float
     return float(right), float(bottom)
 
 
+def _fit_font(draw: ImageDraw.ImageDraw, text: str, max_width: int, preferred_size: int, minimum_size: int = 14):
+    size = preferred_size
+    while size >= minimum_size:
+        font = _font(size)
+        width, _ = _text_size(draw, text, font)
+        if width <= max_width:
+            return font
+        size -= 2
+    return _font(minimum_size)
+
+
 def _draw_centered(
     draw: ImageDraw.ImageDraw,
     text: str,
@@ -112,21 +123,51 @@ def _draw_centered(
     return width, height
 
 
-def _placeholder_card(hour: int, nickname: str, width: int, height: int) -> Image.Image:
+def _draw_emoji_centered(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    center_x: int,
+    y: int,
+    size: int,
+):
+    font = _emoji_font(size)
+    width, height = _text_size(draw, text, font)
+    draw.text(
+        (center_x - width / 2, y),
+        text,
+        font=font,
+        embedded_color=True,
+    )
+    return width, height
+
+
+def _member_scale(member_count: int) -> tuple[int, int, int]:
+    if member_count <= 2:
+        return 30, 58, 26
+    if member_count <= 4:
+        return 28, 52, 24
+    if member_count <= 6:
+        return 24, 46, 22
+    return 22, 40, 20
+
+
+def _placeholder_card(hour: int, nickname: str, width: int, height: int, member_count: int) -> Image.Image:
     image = Image.new('RGB', (width, height), CARD_COLOR)
     draw = ImageDraw.Draw(image)
     draw.rounded_rectangle((0, 0, width - 1, height - 1), radius=28, outline=LINE_COLOR, width=2)
+    nickname_size, time_size, caption_size = _member_scale(member_count)
+    nickname_font = _fit_font(draw, nickname, width - 80, min(nickname_size, max(18, height // 8)), 16)
     draw.text(
         (40, 34),
         nickname,
         fill=TEXT_COLOR,
-        font=_font(max(22, min(30, height // 10))),
+        font=nickname_font,
         stroke_width=1,
         stroke_fill=(0, 0, 0),
     )
 
-    hour_font = _font(max(34, min(58, height // 5)))
-    emoji_font = _emoji_font(max(34, min(52, height // 5)))
+    hour_font = _font(max(30, min(time_size, height // 4)))
+    emoji_size = max(32, min(caption_size + 16, height // 4))
     center_x = width // 2
     start_y = max(height // 3 - 18, 86)
     _, hour_height = _draw_centered(
@@ -145,46 +186,38 @@ def _placeholder_card(hour: int, nickname: str, width: int, height: int) -> Imag
     sleepy_right_x = center_x + sleepy_gap
     _, sleepy_height = _draw_centered(
         draw,
-        '😴',
+        ' ',
         sleepy_left_x,
         sleepy_y,
-        emoji_font,
+        hour_font,
         TEXT_COLOR,
-        stroke_width=2,
-        stroke_fill=(0, 0, 0),
     )
-    _draw_centered(
-        draw,
-        '💤',
-        sleepy_right_x,
-        sleepy_y + max(4, sleepy_height * 0.12),
-        emoji_font,
-        TEXT_COLOR,
-        stroke_width=2,
-        stroke_fill=(0, 0, 0),
-    )
+    _draw_emoji_centered(draw, '😴', sleepy_left_x, sleepy_y, emoji_size)
+    _draw_emoji_centered(draw, '💤', sleepy_right_x, sleepy_y + max(4, sleepy_height * 0.12), emoji_size)
     return image
 
 
-def _media_card(path_value: str | None, hour: int, nickname: str, caption: str, width: int, height: int) -> Image.Image:
+def _media_card(path_value: str | None, hour: int, nickname: str, caption: str, width: int, height: int, member_count: int) -> Image.Image:
     visual = _load_visual(path_value, width, height)
     if visual is None:
-        return _placeholder_card(hour, nickname, width, height)
+        return _placeholder_card(hour, nickname, width, height, member_count)
 
     image = visual.convert('RGB')
     draw = ImageDraw.Draw(image)
+    nickname_size, time_size, caption_size = _member_scale(member_count)
+    nickname_font = _fit_font(draw, nickname, width - 80, min(nickname_size, max(18, height // 8)), 16)
     draw.text(
         (40, 34),
         nickname,
         fill=TEXT_COLOR,
-        font=_font(max(22, min(30, height // 10))),
+        font=nickname_font,
         stroke_width=1,
         stroke_fill=(0, 0, 0),
     )
 
     center_x = width // 2
-    time_font = _font(max(34, min(58, height // 5)))
-    caption_font = _font(max(20, min(26, height // 11)))
+    time_font = _font(max(30, min(time_size, height // 4)))
+    caption_font = _fit_font(draw, (caption or '').strip()[:28] or ' ', width - 72, min(caption_size, max(18, height // 9)), 16)
     time_top = max(height // 2 - 66, 120)
     _, time_height = _draw_centered(
         draw,
@@ -238,6 +271,7 @@ def _slot_frame(hour: int, entries: Sequence[dict]) -> np.ndarray:
             entry.get('caption') or '',
             card_width,
             card_height,
+            member_count,
         )
         canvas.paste(card, (horizontal_padding, offset_y))
         offset_y += card_height + vertical_gap
