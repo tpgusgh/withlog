@@ -115,7 +115,25 @@ def _fit_cover(image: Image.Image, width: int, height: int) -> Image.Image:
     return resized.crop((left, top, left + width, top + height))
 
 
-def _load_visual(path_value: str | None, width: int, height: int) -> Image.Image | None:
+def _resolve_video_frame_index(reader, frame_progress: float) -> int:
+    frame_progress = min(max(frame_progress, 0.0), 1.0)
+    try:
+        frame_count = reader.count_frames()
+        if frame_count and frame_count > 0:
+            return min(int(round(frame_progress * max(frame_count - 1, 0))), max(frame_count - 1, 0))
+    except Exception:
+        pass
+
+    meta = reader.get_meta_data() or {}
+    fps = float(meta.get('fps') or FPS)
+    duration = meta.get('duration')
+    if duration:
+        estimated_frame_count = max(int(duration * fps), 1)
+        return min(int(round(frame_progress * max(estimated_frame_count - 1, 0))), max(estimated_frame_count - 1, 0))
+    return 0
+
+
+def _load_visual(path_value: str | None, width: int, height: int, frame_progress: float = 0.0) -> Image.Image | None:
     resolved = _resolve_media_path(path_value)
     if not resolved:
         return None
@@ -126,7 +144,8 @@ def _load_visual(path_value: str | None, width: int, height: int) -> Image.Image
         if suffix in VIDEO_SUFFIXES:
             reader = imageio.get_reader(str(resolved))
             try:
-                frame = reader.get_data(0)
+                frame_index = _resolve_video_frame_index(reader, frame_progress)
+                frame = reader.get_data(frame_index)
             finally:
                 reader.close()
             return _fit_cover(Image.fromarray(frame), width, height)
@@ -356,8 +375,17 @@ def _placeholder_card(hour: int, nickname: str, width: int, height: int, member_
     return image
 
 
-def _media_card(path_value: str | None, hour: int, nickname: str, caption: str, width: int, height: int, member_count: int) -> Image.Image:
-    visual = _load_visual(path_value, width, height)
+def _media_card(
+    path_value: str | None,
+    hour: int,
+    nickname: str,
+    caption: str,
+    width: int,
+    height: int,
+    member_count: int,
+    frame_progress: float = 0.0,
+) -> Image.Image:
+    visual = _load_visual(path_value, width, height, frame_progress)
     if visual is None:
         return _placeholder_card(hour, nickname, width, height, member_count)
 
@@ -402,7 +430,7 @@ def _media_card(path_value: str | None, hour: int, nickname: str, caption: str, 
     return image
 
 
-def _slot_frame(hour: int, entries: Sequence[dict]) -> np.ndarray:
+def _slot_frame(hour: int, entries: Sequence[dict], frame_progress: float = 0.0) -> np.ndarray:
     canvas = Image.new('RGB', (VIDEO_WIDTH, VIDEO_HEIGHT), BACKGROUND_COLOR)
     draw = ImageDraw.Draw(canvas)
     draw.text((40, 28), f'{hour:02d}:00', fill=TEXT_COLOR, font=_font(34, f'{hour:02d}:00'), stroke_width=1, stroke_fill=(0, 0, 0))
@@ -428,6 +456,7 @@ def _slot_frame(hour: int, entries: Sequence[dict]) -> np.ndarray:
             card_width,
             card_height,
             member_count,
+            frame_progress,
         )
         canvas.paste(card, (horizontal_padding, offset_y))
         offset_y += card_height + vertical_gap
@@ -442,8 +471,9 @@ def render_daily_video(group_id: int, date_str: str, slot_layouts: Sequence[dict
 
     with imageio.get_writer(str(output), fps=FPS, codec='libx264', format='FFMPEG') as writer:
         for slot in slot_layouts:
-            frame = _slot_frame(slot.get('hour', 0), slot.get('entries', []))
-            for _ in range(frames_per_slot):
+            for frame_index in range(frames_per_slot):
+                frame_progress = frame_index / max(frames_per_slot - 1, 1)
+                frame = _slot_frame(slot.get('hour', 0), slot.get('entries', []), frame_progress)
                 writer.append_data(frame)
 
     return f"/generated/{output.name}"

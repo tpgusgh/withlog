@@ -20,6 +20,17 @@ def rolling_window_key(now: datetime) -> str:
     return f'rolling-{now.strftime("%Y-%m-%d")}-{now.hour:02d}'
 
 
+def rolling_window_points(now: datetime) -> list[tuple[str, int]]:
+    window_start = now - timedelta(hours=24)
+    cursor = window_start.replace(minute=0, second=0, microsecond=0)
+    end = now.replace(minute=0, second=0, microsecond=0)
+    points: list[tuple[str, int]] = []
+    while cursor <= end:
+        points.append((cursor.strftime('%Y-%m-%d'), cursor.hour))
+        cursor += timedelta(hours=1)
+    return points
+
+
 @router.post('/group/{group_id}/daily')
 def generate_daily_video(group_id: int, date: str | None = None, db: Session = Depends(get_db)):
     group = db.query(Group).filter(Group.id == group_id).first()
@@ -45,10 +56,7 @@ def generate_daily_video(group_id: int, date: str | None = None, db: Session = D
         missing_detail = '이 날짜에는 요약할 기록이 없습니다.'
     else:
         now = local_now()
-        window_points = []
-        for index in range(24):
-            point = now - timedelta(hours=23 - index)
-            window_points.append((point.strftime('%Y-%m-%d'), point.hour))
+        window_points = rolling_window_points(now)
         target_dates = sorted({slot_date for slot_date, _ in window_points})
         slots = db.query(Slot).filter(Slot.group_id == group_id, Slot.slot_date.in_(target_dates)).all()
         slots_by_key = {(slot.slot_date, slot.slot_hour): slot for slot in slots}
