@@ -19,27 +19,29 @@ export default function DailyVideoScreen() {
   const { isDark } = useAppTheme();
   const [downloading, setDownloading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const isRollingWindow = !date;
   const targetDate = date ?? formatLocalDate(new Date());
-  const isToday = targetDate === formatLocalDate(new Date());
   const dailyQuery = useQuery({
-    queryKey: ['daily-video', groupId, targetDate],
+    queryKey: ['daily-video', groupId, isRollingWindow ? 'rolling' : targetDate],
     enabled: Number.isFinite(groupId),
     queryFn: async () => {
-      const response = await api.get(`/videos/group/${groupId}/daily`, { params: { date: targetDate } });
+      const response = await api.get(`/videos/group/${groupId}/daily`, {
+        params: isRollingWindow ? undefined : { date: targetDate },
+      });
       return response.data as { status: string; output_url?: string };
     },
   });
   const generateMutation = useMutation({
     mutationFn: async () => {
       const response = await api.post(`/videos/group/${groupId}/daily`, null, {
-        params: { date: targetDate },
+        params: isRollingWindow ? undefined : { date: targetDate },
         timeout: 180000,
       });
       return response.data as { status: string; output_url?: string };
     },
     onMutate: () => setGenerating(true),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['daily-video', groupId, targetDate] });
+      await queryClient.invalidateQueries({ queryKey: ['daily-video', groupId, isRollingWindow ? 'rolling' : targetDate] });
     },
     onError: (err) => {
       const message =
@@ -69,7 +71,7 @@ export default function DailyVideoScreen() {
         return;
       }
 
-      const localUri = `${FileSystem.documentDirectory}withlog-summary-${groupId}-${targetDate}.mp4`;
+      const localUri = `${FileSystem.documentDirectory}withlog-summary-${groupId}-${isRollingWindow ? 'recent-24h' : targetDate}.mp4`;
       const download = await FileSystem.downloadAsync(videoUrl, localUri);
       await MediaLibrary.saveToLibraryAsync(download.uri);
       Alert.alert('저장 완료', '오늘 요약 영상을 기기에 저장했어요.');
@@ -83,10 +85,10 @@ export default function DailyVideoScreen() {
   return (
     <SafeAreaView style={[styles.container, isDark && styles.containerDark]} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={[styles.title, isDark && styles.titleDark]}>오늘의 요약 영상</Text>
-        <Text style={[styles.sub, isDark && styles.subDark]}>{isToday ? '오늘 00:00부터 24:00까지의 기록을 인원수에 맞춰 세로 스택으로 묶어 보여줍니다.' : '선택한 날짜의 기록을 인원수에 맞춰 세로 스택으로 묶어 보여줍니다.'}</Text>
+        <Text style={[styles.title, isDark && styles.titleDark]}>{isRollingWindow ? '최근 24시간 요약 영상' : '날짜별 요약 영상'}</Text>
+        <Text style={[styles.sub, isDark && styles.subDark]}>{isRollingWindow ? '지금부터 직전 24시간 안의 기록을 인원수에 맞춰 세로 스택으로 묶어 보여줍니다.' : '선택한 날짜의 기록을 인원수에 맞춰 세로 스택으로 묶어 보여줍니다.'}</Text>
         <View style={[styles.infoCard, isDark && styles.infoCardDark]}>
-          <Text style={styles.dateLabel}>대상 날짜 {targetDate}</Text>
+          <Text style={styles.dateLabel}>{isRollingWindow ? '대상 구간 최근 24시간' : `대상 날짜 ${targetDate}`}</Text>
           <Text style={[styles.infoCopy, isDark && styles.infoCopyDark]}>실제 동영상이 만들어지면 먼저 확인하고, 그다음 저장할지 결정할 수 있어요.</Text>
           <Text style={[styles.infoNote, isDark && styles.infoNoteDark]}>생성된 영상은 24시간 후 자동 삭제된다.</Text>
         </View>
