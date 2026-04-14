@@ -1,4 +1,4 @@
-package com.withlog.app
+package com.withcam.app
 
 import android.app.Application
 import android.content.res.Configuration

@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "withlog",
-    "slug": "withlog",
-    "scheme": "withlog",
+    "name": "withcam",
+    "slug": "withcam",
+    "scheme": "withcam",
     "version": "1.0.0",
     "icon": "./assets/icon.png",
     "orientation": "portrait",
@@ -14,17 +14,17 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.withlog.app",
+      "bundleIdentifier": "com.withcam.app",
       "buildNumber": "1.0.0",
       "infoPlist": {
-        "NSCameraUsageDescription": "withlog records photos and videos for your hourly posts.",
-        "NSPhotoLibraryUsageDescription": "withlog accesses your library to upload profile photos and stories.",
-        "NSPhotoLibraryAddUsageDescription": "withlog saves recap videos to your photo library.",
-        "NSMicrophoneUsageDescription": "withlog uses the microphone while recording videos."
+        "NSCameraUsageDescription": "withcam records photos and videos for your hourly posts.",
+        "NSPhotoLibraryUsageDescription": "withcam accesses your library to upload profile photos and stories.",
+        "NSPhotoLibraryAddUsageDescription": "withcam saves recap videos to your photo library.",
+        "NSMicrophoneUsageDescription": "withcam uses the microphone while recording videos."
       }
     },
     "android": {
-      "package": "com.withlog.app",
+      "package": "com.withcam.app",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -58,9 +58,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "2aa8e4e9-76cb-49fd-8eb2-4ac227faf94b"
+        "projectId": "edc1d095-2764-4da9-a7db-d0026312eb8a"
       }
     },
-    "owner": "kimhunho"
+    "owner": "gimgibae2"
   }
 }

@@ -1,4 +1,4 @@
-package com.withlog.app
+package com.withcam.app
 
 import android.os.Build
 import android.os.Bundle
