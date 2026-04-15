@@ -19,6 +19,8 @@ generated/
 mobile/node_modules/
 mobile/.expo/
 mobile/dist/
+*.jks
+*.pem
 
 
 # Misc
